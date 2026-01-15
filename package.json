@@ -1,7 +1,7 @@
 {
   "name": "metromaps8.1",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -9,10 +9,32 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@mapbox/polyline": "^1.2.1",
+    "babel-preset-expo": "~54.0.9",
     "expo": "~54.0.31",
+    "expo-constants": "~18.0.13",
+    "expo-linking": "~8.0.11",
+    "expo-location": "~19.0.8",
+    "expo-router": "~6.0.21",
+    "expo-screen-orientation": "~9.0.8",
+    "expo-speech": "~14.0.8",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-maps": "1.20.1",
+    "react-native-pager-view": "6.9.1",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0",
+    "react-native-worklets": "^0.5.1",
+    "react-native-worklets-core": "^1.6.2"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@types/react": "~19.1.10"
+  }
 }
