@@ -68,15 +68,42 @@ export default function HomeScreen() {
     // Locations
     useEffect(() => {
         (async () => {
-            let { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') return;
+            // Check if Location Services are enabled at system level
+            const servicesEnabled = await Location.hasServicesEnabledAsync();
+            if (!servicesEnabled) {
+                console.log('Location Services disabled in Settings - app will work without location');
+                return;
+            }
+
+            // Check current permission status first (without prompting)
+            let { status } = await Location.getForegroundPermissionsAsync();
+
+            // Only request if not yet determined (first launch)
+            if (status === 'undetermined') {
+                const result = await Location.requestForegroundPermissionsAsync();
+                status = result.status;
+            }
+
+            // If denied, don't keep asking - just exit gracefully
+            if (status !== 'granted') {
+                console.log('Location permission denied - app will work without location');
+                return;
+            }
 
             // Simple Polling Loop (Robustness > Efficiency for Prototype)
             const interval = setInterval(async () => {
-                const location = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.BestForNavigation
-                });
-                setUserLocation(location.coords);
+                try {
+                    // Re-check services in case user toggled it off
+                    const stillEnabled = await Location.hasServicesEnabledAsync();
+                    if (!stillEnabled) return;
+
+                    const location = await Location.getCurrentPositionAsync({
+                        accuracy: Location.Accuracy.BestForNavigation
+                    });
+                    setUserLocation(location.coords);
+                } catch (e) {
+                    // Location might be temporarily unavailable
+                }
             }, 1000);
 
             return () => clearInterval(interval);
