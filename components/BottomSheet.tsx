@@ -7,7 +7,7 @@ import { Colors } from '../constants/Colors';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Snap Points
-const PEEK_HEIGHT = SCREEN_HEIGHT * 0.18;
+const PEEK_HEIGHT = SCREEN_HEIGHT * 0.20;
 const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.8;
 const HIDDEN_Y = SCREEN_HEIGHT;
 const PEEK_Y = SCREEN_HEIGHT - PEEK_HEIGHT;

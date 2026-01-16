@@ -77,10 +77,10 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
                         <Text style={GlobalStyles.dimText}>Address: </Text>
                         <Text style={GlobalStyles.metroMD}>{selectedPlace.display_name}</Text>
                     </View>
-                    {selectedPlace.extratags?.phone && (
+                    {selectedPlace.phone && (
                         <View style={styles.row}>
                             <Text style={GlobalStyles.dimText}>Phone: </Text>
-                            <Text style={GlobalStyles.metroMD}>{selectedPlace.extratags.phone}</Text>
+                            <Text style={GlobalStyles.metroMD}>{selectedPlace.phone}</Text>
                         </View>
                     )}
 

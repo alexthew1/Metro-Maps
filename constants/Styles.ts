@@ -4,7 +4,7 @@ import { Colors } from './Colors';
 export const GlobalStyles = StyleSheet.create({
     // Typography
     metroXL: {
-        fontFamily: 'System', // We'll try to load Open Sans, fallback to System
+        fontFamily: 'OpenSans_300Light',
         fontSize: 58,
         fontWeight: '300',
         lineHeight: 58,
@@ -12,7 +12,7 @@ export const GlobalStyles = StyleSheet.create({
         color: Colors.white,
     },
     metroLG: {
-        fontFamily: 'System',
+        fontFamily: 'OpenSans_300Light',
         fontSize: 42,
         fontWeight: '300',
         lineHeight: 46,
@@ -20,19 +20,19 @@ export const GlobalStyles = StyleSheet.create({
         color: Colors.white,
     },
     metroMD: {
-        fontFamily: 'System',
+        fontFamily: 'OpenSans_400Regular',
         fontSize: 24,
         fontWeight: '400',
         color: Colors.white,
     },
     metroSM: {
-        fontFamily: 'System',
+        fontFamily: 'OpenSans_400Regular',
         fontSize: 19,
         fontWeight: '400',
         color: Colors.white,
     },
     metroXS: {
-        fontFamily: 'System',
+        fontFamily: 'OpenSans_600SemiBold',
         fontSize: 14,
         fontWeight: '600',
         textTransform: 'lowercase',

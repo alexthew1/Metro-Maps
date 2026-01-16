@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MetroMaps8.1",
-    "slug": "MetroMaps8.1",
+    "slug": "metromaps",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -19,7 +19,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow MetroMap to access your location."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "scheme": "metromap",
     "ios": {
@@ -32,7 +33,23 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.metromap.ultimate"
-    }
+      "package": "com.metromap.ultimate",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCt3bCNc6I74H9UCdXLRcVWCFErAzjBFwY"
+        }
+      }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b469ad27-1d33-414f-9884-55427dd59992"
+      }
+    },
+    "owner": "alexthews-organization"
   }
 }

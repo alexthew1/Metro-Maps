@@ -19,7 +19,10 @@ interface SearchCurtainProps {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const CATEGORIES = ['Restaurants', 'Gas Station', 'Hotel', 'Parking', 'Bank', 'Pharmacy', 'Grocery', 'Bar', 'ATM'];
+const CATEGORIES = [
+    'Restaurants', 'Burger', 'Pizza', 'Chinese', 'Mexican', 'Italian', 'Japanese', 'Indian', 'Steak',
+    'Gas Station', 'Hotel', 'Parking', 'Grocery', 'Pharmacy', 'Bank', 'Bar', 'ATM'
+];
 
 export function SearchCurtain({ active, onClose, onResultSelected, region, onCategorySearch, userLocation }: SearchCurtainProps) {
     const insets = useSafeAreaInsets();
@@ -27,8 +30,8 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
     const [results, setResults] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
 
-    // Known categories for smart parsing
-    const knownCategories = ['restaurants', 'gas station', 'hotel', 'parking', 'bank', 'pharmacy', 'grocery', 'bar', 'atm'];
+    // Known categories for smart parsing (include common variations)
+    const knownCategories = ['restaurant', 'restaurants', 'burger', 'burgers', 'pizza', 'chinese', 'mexican', 'japanese', 'indian', 'italian', 'steak', 'gas', 'gas station', 'hotel', 'hotels', 'parking', 'bank', 'banks', 'pharmacy', 'grocery', 'bar', 'bars', 'atm'];
 
     // Debouce Search
     useEffect(() => {
@@ -37,24 +40,52 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                 setLoading(true);
 
                 // Check for "category in location" pattern
-                const inMatch = query.toLowerCase().match(/^(.+?)\s+in\s+(.+)$/i);
+                const inMatch = query.match(/^(.+?)\s+in\s+(.+)$/i);
 
                 if (inMatch) {
-                    const [_, categoryPart, locationPart] = inMatch;
-                    const category = categoryPart.trim();
-                    const location = locationPart.trim();
+                    const categoryPart = inMatch[1].trim().toLowerCase();
+                    const locationPart = inMatch[2].trim();
 
-                    // Check if categoryPart is a known category
-                    const isKnownCategory = knownCategories.some(c =>
-                        c.toLowerCase() === category.toLowerCase() ||
-                        c.toLowerCase().includes(category.toLowerCase())
-                    );
+                    console.log('Parsed search:', { categoryPart, locationPart });
 
-                    if (isKnownCategory && location.length > 2) {
-                        // Geocode the location first
-                        const coords = await api.geocode(location);
+                    // Map common variations to API category names
+                    const categoryMap: Record<string, string> = {
+                        'restaurant': 'restaurants',
+                        'restaurants': 'restaurants',
+                        'burger': 'burger',
+                        'burgers': 'burger',
+                        'pizza': 'pizza',
+                        'chinese': 'chinese',
+                        'mexican': 'mexican',
+                        'japanese': 'japanese',
+                        'indian': 'indian',
+                        'italian': 'italian',
+                        'steak': 'steak',
+                        'gas': 'gas station',
+                        'gas station': 'gas station',
+                        'hotel': 'hotel',
+                        'hotels': 'hotel',
+                        'parking': 'parking',
+                        'bank': 'bank',
+                        'banks': 'bank',
+                        'pharmacy': 'pharmacy',
+                        'grocery': 'grocery',
+                        'bar': 'bar',
+                        'bars': 'bar',
+                        'atm': 'atm',
+                    };
+
+                    const mappedCategory = categoryMap[categoryPart];
+
+                    if (mappedCategory && locationPart.length > 2) {
+                        console.log('Geocoding location:', locationPart);
+                        const coords = await api.geocode(locationPart);
+                        console.log('Geocode result:', coords);
+
                         if (coords) {
-                            const data = await api.searchByCategory(category, coords.latitude, coords.longitude, 24);
+                            console.log('Searching category:', mappedCategory, 'at', coords);
+                            const data = await api.searchByCategory(mappedCategory, coords.latitude, coords.longitude, 24);
+                            console.log('Category search results:', data.length);
                             setResults(data);
                             setLoading(false);
                             if (onCategorySearch) onCategorySearch(data);
@@ -165,13 +196,15 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                 <FlatList
                     data={results}
                     keyExtractor={(item) => item.place_id.toString()}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
                     renderItem={({ item }) => (
                         <TouchableOpacity style={styles.suggestion} onPress={() => onResultSelected(item)}>
-                            <Text style={styles.suggestionText}>
-                                {/* Simple highlight logic could go here, for now just render */}
-                                <Text style={{ color: Colors.accent }}>{item.display_name.split(',')[0]}</Text>
-                                <Text style={{ color: Colors.white }}>{item.display_name.substring(item.display_name.indexOf(','))}</Text>
-                            </Text>
+                            <View>
+                                <Text style={[styles.suggestionText, { color: Colors.accent }]}>{item.display_name}</Text>
+                                {item.address ? (
+                                    <Text style={[styles.suggestionText, { color: '#bbb', fontSize: 16 }]}>{item.address}</Text>
+                                ) : null}
+                            </View>
                         </TouchableOpacity>
                     )}
                 />
@@ -206,7 +239,7 @@ const styles = StyleSheet.create({
         height: '100%',
         fontSize: 20,
         color: 'black',
-        fontFamily: 'System', // Ideal: Open Sans
+        fontFamily: 'OpenSans_400Regular',
     },
     resultsContainer: {
         paddingHorizontal: 20,

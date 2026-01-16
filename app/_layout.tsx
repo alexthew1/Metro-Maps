@@ -1,29 +1,61 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
 import { useEffect } from 'react';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+
+import * as NavigationBar from 'expo-navigation-bar';
+import { useFonts, OpenSans_300Light, OpenSans_400Regular, OpenSans_600SemiBold, OpenSans_700Bold } from '@expo-google-fonts/open-sans';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+    const [fontsLoaded] = useFonts({
+        OpenSans_300Light,
+        OpenSans_400Regular,
+        OpenSans_600SemiBold,
+        OpenSans_700Bold,
+    });
 
     useEffect(() => {
-        // Lock to portrait for this prototype to simplify layout
+        // Lock to portrait
         ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+
+        // Configure System Navigation Bar (Android)
+        if (Platform.OS === 'android') {
+            NavigationBar.setBackgroundColorAsync("black");
+            NavigationBar.setButtonStyleAsync("light");
+        }
     }, []);
+
+    useEffect(() => {
+        if (fontsLoaded) {
+            SplashScreen.hideAsync();
+        }
+    }, [fontsLoaded]);
+
+    if (!fontsLoaded) {
+        return null;
+    }
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <View style={{ flex: 1, backgroundColor: Colors.background }}>
-                {/* Hide Status Bar -> Fullscreen Experience */}
-                <StatusBar hidden={true} style="light" />
-                <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
-                    <Stack.Screen name="index" />
-                </Stack>
-            </View>
+            <ErrorBoundary>
+                <View style={{ flex: 1, backgroundColor: Colors.background }}>
+                    {/* Hide Status Bar -> Fullscreen Experience */}
+                    <StatusBar hidden={true} style="light" />
+                    <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
+                        <Stack.Screen name="index" />
+                    </Stack>
+                </View>
+            </ErrorBoundary>
         </GestureHandlerRootView>
     );
 }

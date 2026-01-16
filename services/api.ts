@@ -1,39 +1,28 @@
 import { decode } from '@mapbox/polyline';
+import Constants from 'expo-constants';
 
-const OSM_BASE_URL = 'https://nominatim.openstreetmap.org/search';
-const OSRM_BASE_URL = 'http://router.project-osrm.org/route/v1/driving';
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-
-// Category to OSM tag mappings
-const CATEGORY_TAGS: { [key: string]: string } = {
-    'restaurants': 'amenity=restaurant',
-    'coffee': 'amenity=cafe',
-    'gas station': 'amenity=fuel',
-    'hotel': 'tourism=hotel',
-    'parking': 'amenity=parking',
-    'pizza': 'cuisine=pizza',
-    'bank': 'amenity=bank',
-    'pharmacy': 'amenity=pharmacy',
-    'grocery': 'shop=supermarket',
-    'bar': 'amenity=bar',
-    'hospital': 'amenity=hospital',
-    'atm': 'amenity=atm',
-};
+// Use the key provided by the user or fallback to config
+const GOOGLE_API_KEY = Constants.expoConfig?.android?.config?.googleMaps?.apiKey || 'AIzaSyCt3bCNc6I74H9UCdXLRcVWCFErAzjBFwY';
+const GOOGLE_BASE_URL = 'https://maps.googleapis.com/maps/api/place';
 
 export interface SearchResult {
-    place_id: number;
+    place_id: string;
     lat: string;
     lon: string;
     display_name: string;
     type: string;
-    extratags?: {
-        phone?: string;
-        website?: string;
-        opening_hours?: string;
-        description?: string;
-        [key: string]: string | undefined;
-    };
-    address?: any;
+    address?: string; // Formatted address
+    rating?: number;
+    user_ratings_total?: number;
+    price_level?: number;
+    photos?: any[];
+    vicinity?: string;
+    isOpen?: boolean;
+    // Details loaded later
+    phone?: string;
+    website?: string;
+    reviews?: any[];
+    description?: string; // Derived from editorial_summary
 }
 
 export interface RouteResult {
@@ -45,138 +34,195 @@ export interface RouteResult {
 }
 
 export const api = {
-    // Text-based search using Nominatim
-    async searchPlaces(query: string, viewbox?: string): Promise<SearchResult[]> {
+    // Helper to get Photo URL
+    getPhotoUrl(reference: string, maxWidth: number = 400): string {
+        return `${GOOGLE_BASE_URL}/photo?maxwidth=${maxWidth}&photo_reference=${reference}&key=${GOOGLE_API_KEY}`;
+    },
+
+    // Text Search (Google Places)
+    async searchPlaces(query: string, location?: { lat: number; lon: number }, radius: number = 5000): Promise<SearchResult[]> {
         try {
-            let url = `${OSM_BASE_URL}?q=${encodeURIComponent(query)}&format=json&addressdetails=1&extratags=1&limit=50`;
-            if (viewbox) {
-                url += `&viewbox=${viewbox}&bounded=1`;
+            let url = `${GOOGLE_BASE_URL}/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
+
+            if (location) {
+                // Bias results to location
+                url += `&location=${location.lat},${location.lon}&radius=${radius}`;
             }
 
-            const response = await fetch(url, {
-                headers: { 'User-Agent': 'MetroMap8.1/1.0' },
-            });
-            if (!response.ok) throw new Error('Network response was not ok');
-            return await response.json();
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+                console.error('Google Places Error:', data.status, data.error_message);
+                return [];
+            }
+
+            return (data.results || []).map((item: any) => ({
+                place_id: item.place_id,
+                lat: item.geometry.location.lat.toString(),
+                lon: item.geometry.location.lng.toString(),
+                display_name: item.name,
+                type: item.types?.[0] || 'place',
+                address: item.formatted_address,
+                rating: item.rating,
+                user_ratings_total: item.user_ratings_total,
+                price_level: item.price_level,
+                photos: item.photos,
+                vicinity: item.formatted_address,
+                isOpen: item.opening_hours?.open_now,
+            }));
         } catch (error) {
             console.error('Search failed:', error);
             return [];
         }
     },
 
-    // Geocode a location name to coordinates
-    async geocode(locationName: string): Promise<{ latitude: number; longitude: number } | null> {
-        try {
-            const url = `${OSM_BASE_URL}?q=${encodeURIComponent(locationName)}&format=json&limit=1`;
-            const response = await fetch(url, {
-                headers: { 'User-Agent': 'MetroMap8.1/1.0' },
-            });
-            if (!response.ok) return null;
-            const data = await response.json();
-            if (data.length > 0) {
-                return { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };
-            }
-            return null;
-        } catch (error) {
-            console.error('Geocode failed:', error);
-            return null;
-        }
-    },
-
-    // Category-based search using Overpass API
+    // Category Search (Mapped to Text Search for better relevance)
     async searchByCategory(category: string, lat: number, lon: number, radiusKm: number = 25): Promise<SearchResult[]> {
+        // "Italian restaurants near me" logic is handled well by Text Search with location bias
+        // We append the category to "near me" or just use the category + location bias
+        const query = category;
+        return this.searchPlaces(query, { lat, lon }, radiusKm * 1000);
+    },
+
+    // Get Place Details (Photos, Reviews, specific info)
+    async getPlaceDetails(placeId: string): Promise<SearchResult | null> {
         try {
-            const tag = CATEGORY_TAGS[category.toLowerCase()] || `amenity=${category.toLowerCase().replace(' ', '_')}`;
-            const [key, value] = tag.includes('=') ? tag.split('=') : ['amenity', category.toLowerCase()];
-            const radiusMeters = radiusKm * 1000;
+            const fields = 'name,rating,formatted_phone_number,photos,reviews,website,opening_hours,geometry,formatted_address,user_ratings_total,price_level,url,editorial_summary';
+            const url = `${GOOGLE_BASE_URL}/details/json?place_id=${placeId}&fields=${fields}&key=${GOOGLE_API_KEY}`;
 
-            // Overpass QL query - fetch nodes and ways with metadata
-            const query = `
-[out:json][timeout:30];
-(
-  node["${key}"="${value}"](around:${radiusMeters},${lat},${lon});
-  way["${key}"="${value}"](around:${radiusMeters},${lat},${lon});
-);
-out center body;
-`;
-
-            console.log('Overpass query:', query);
-
-            const response = await fetch(OVERPASS_URL, {
-                method: 'POST',
-                body: `data=${encodeURIComponent(query)}`,
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Overpass error response:', errorText);
-                throw new Error(`Overpass request failed: ${response.status}`);
-            }
-
+            const response = await fetch(url);
             const data = await response.json();
 
-            if (!data.elements || data.elements.length === 0) {
-                console.log('No results from Overpass');
-                return [];
+            if (data.status !== 'OK') {
+                return null;
             }
 
-            // Transform Overpass elements to SearchResult format
-            return data.elements.map((el: any) => {
-                const elLat = el.lat || el.center?.lat;
-                const elLon = el.lon || el.center?.lon;
-                const tags = el.tags || {};
-
-                return {
-                    place_id: el.id,
-                    lat: String(elLat),
-                    lon: String(elLon),
-                    display_name: tags.name || tags['name:en'] || category,
-                    type: tags.amenity || tags.tourism || tags.shop || category,
-                    extratags: {
-                        phone: tags.phone || tags['contact:phone'],
-                        website: tags.website || tags['contact:website'],
-                        opening_hours: tags.opening_hours,
-                        description: tags.description || tags['description:en'],
-                    },
-                    address: {
-                        road: tags['addr:street'],
-                        house_number: tags['addr:housenumber'],
-                        city: tags['addr:city'],
-                        postcode: tags['addr:postcode'],
-                    },
-                };
-            }).filter((r: SearchResult) => r.lat && r.lon);
+            const r = data.result;
+            return {
+                place_id: placeId,
+                lat: r.geometry.location.lat.toString(),
+                lon: r.geometry.location.lng.toString(),
+                display_name: r.name,
+                type: 'place',
+                address: r.formatted_address,
+                phone: r.formatted_phone_number,
+                website: r.website,
+                rating: r.rating,
+                user_ratings_total: r.user_ratings_total,
+                price_level: r.price_level,
+                photos: r.photos,
+                reviews: r.reviews,
+                isOpen: r.opening_hours?.open_now,
+                description: r.editorial_summary?.overview,
+            };
         } catch (error) {
-            console.error('Category search failed:', error);
-            return [];
+            console.error('Get details failed:', error);
+            return null;
         }
     },
 
-    async getRoute(start: { lat: number; lon: number }, end: { lat: number; lon: number }): Promise<RouteResult | null> {
+    // Geocode (using Text Search as fallback or Geocoding API if strictly needed, but Text Search works for "London")
+    async geocode(locationName: string): Promise<{ latitude: number; longitude: number } | null> {
+        const results = await this.searchPlaces(locationName);
+        if (results.length > 0) {
+            return {
+                latitude: parseFloat(results[0].lat),
+                longitude: parseFloat(results[0].lon)
+            };
+        }
+        return null;
+    },
+
+    // KEEPING OSRM FOR ROUTING (Google Directions API is not requested/needed yet and OSRM is free)
+    async getRoute(start: { lat: number; lon: number }, end: { lat: number; lon: number }, mode: 'driving' | 'walking' | 'transit' = 'driving'): Promise<RouteResult | null> {
         try {
-            const url = `${OSRM_BASE_URL}/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=polyline&steps=true`;
+            console.log(`Fetching Google Directions (${mode})...`);
+            const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start.lat},${start.lon}&destination=${end.lat},${end.lon}&mode=${mode}&key=${GOOGLE_API_KEY}`;
             const response = await fetch(url);
             const json = await response.json();
 
-            if (json.code !== 'Ok' || !json.routes || json.routes.length === 0) {
+            if (json.status !== 'OK' || !json.routes || json.routes.length === 0) {
+                console.error("Google Directions Error:", json.status);
                 return null;
             }
 
             const route = json.routes[0];
-            const encodedPolyline = route.geometry;
+            const leg = route.legs[0];
+            const encodedPolyline = route.overview_polyline.points;
             const decodedPoints = decode(encodedPolyline);
-            const coordinates = decodedPoints.map((point) => ({
-                latitude: point[0],
-                longitude: point[1],
-            }));
+
+            // Normalize Maneuvers
+            const maneuvers = leg.steps.map((step: any) => {
+                // Check for Transit Details
+                if (step.travel_mode === 'TRANSIT' && step.transit_details) {
+                    const line = step.transit_details.line;
+                    const vehicle = line.vehicle.name || 'Transit';
+                    const num = line.short_name || line.name || '';
+                    const headsign = step.transit_details.headsign || '';
+
+                    return {
+                        name: `${vehicle} ${num} to ${headsign}`,
+                        maneuver: {
+                            location: [step.start_location.lng, step.start_location.lat],
+                            type: 'transit',
+                            modifier: vehicle.toLowerCase(), // 'bus', 'subway'
+                        },
+                        distance: step.distance.value,
+                        duration: step.duration.value,
+                    };
+                }
+
+                // Standard Driving/Walking
+                const rawManeuver = step.maneuver || '';
+                let type = 'turn';
+                let modifier = 'straight';
+
+                if (rawManeuver.includes('left')) modifier = 'left';
+                if (rawManeuver.includes('right')) modifier = 'right';
+                if (rawManeuver.includes('sharp-left')) modifier = 'sharp left';
+                if (rawManeuver.includes('sharp-right')) modifier = 'sharp right';
+                if (rawManeuver.includes('uturn')) modifier = 'uturn';
+                if (rawManeuver.includes('straight')) modifier = 'straight';
+                if (rawManeuver.includes('exit') || rawManeuver.includes('ramp')) type = 'off ramp';
+
+                // Fallback (Walking uses "turn-left" etc too)
+                if (!rawManeuver && step.html_instructions?.toLowerCase().includes('left')) modifier = 'left';
+                if (!rawManeuver && step.html_instructions?.toLowerCase().includes('right')) modifier = 'right';
+                if (step.travel_mode === 'WALKING' && !modifier) type = 'walk';
+
+                return {
+                    name: step.html_instructions.replace(/<[^>]*>/g, ''), // Strip HTML
+                    maneuver: {
+                        location: [step.start_location.lng, step.start_location.lat], // [Lon, Lat]
+                        type: type,
+                        modifier: modifier,
+                        bearing_after: 0, // Google doesn't easily provide this per step, we might need to calc
+                    },
+                    distance: step.distance.value,
+                    duration: step.duration.value,
+                };
+            });
+
+            // Add destination arrival
+            maneuvers.push({
+                name: "Arrive at Destination",
+                maneuver: {
+                    location: [leg.end_location.lng, leg.end_location.lat],
+                    type: 'arrive',
+                    modifier: 'straight',
+                }
+            });
 
             return {
-                distance: route.distance,
-                duration: route.duration,
+                distance: leg.distance.value,
+                duration: leg.duration.value,
                 geometry: encodedPolyline,
-                coordinates: coordinates,
-                maneuvers: route.legs[0].steps,
+                coordinates: decodedPoints.map((point) => ({
+                    latitude: point[0],
+                    longitude: point[1],
+                })),
+                maneuvers: maneuvers,
             };
         } catch (error) {
             console.error('Routing failed:', error);

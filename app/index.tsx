@@ -15,17 +15,21 @@ import { ActiveNavigation } from '../components/ActiveNavigation';
 
 export default function HomeScreen() {
     // State
-    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | null>(null);
+    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number, heading?: number | null } | null>(null);
 
     // UI Modes
     const [searchActive, setSearchActive] = useState(false);
     const [pivotActive, setPivotActive] = useState(false);
     const [optionsActive, setOptionsActive] = useState(false);
     const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
+    const [showLabels, setShowLabels] = useState(true);
     const [useMiles, setUseMiles] = useState(true); // true = miles, false = kilometers
     const [cameraTrigger, setCameraTrigger] = useState(0);
     const [mapRegion, setMapRegion] = useState<any>(null); // Track map region for search context
     const [activeNavigation, setActiveNavigation] = useState(false);
+    const [isFollowing, setIsFollowing] = useState(true); // Track if camera follows user
+    const [mapHeading, setMapHeading] = useState(0);
+    const [transportMode, setTransportMode] = useState<'driving' | 'walking' | 'transit'>('driving');
 
     // Sheet States
     const [resultsState, setResultsState] = useState<'hidden' | 'peek' | 'expanded'>('hidden');
@@ -35,6 +39,7 @@ export default function HomeScreen() {
     const [selectedPlace, setSelectedPlace] = useState<SearchResult | null>(null);
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [route, setRoute] = useState<RouteResult | null>(null);
+    const [routeError, setRouteError] = useState<string | null>(null);
 
     // --- Logic ---
 
@@ -44,14 +49,15 @@ export default function HomeScreen() {
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') return;
 
-            // Watch position for updates
-            Location.watchPositionAsync({
-                accuracy: Location.Accuracy.High,
-                timeInterval: 2000,
-                distanceInterval: 10
-            }, (location) => {
+            // Simple Polling Loop (Robustness > Efficiency for Prototype)
+            const interval = setInterval(async () => {
+                const location = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.BestForNavigation
+                });
                 setUserLocation(location.coords);
-            });
+            }, 1000);
+
+            return () => clearInterval(interval);
         })();
     }, []);
 
@@ -59,20 +65,24 @@ export default function HomeScreen() {
     useEffect(() => {
         const backAction = () => {
             if (activeNavigation) {
-                setActiveNavigation(false);
+                // Prevent accidental exit. User must press 'END' button.
                 return true;
             }
             if (optionsActive) { setOptionsActive(false); return true; }
             if (pivotActive) {
                 setPivotActive(false);
-                setSelectedPlace(null); // Clear pin
+                setSelectedPlace(null);
+                setSearchResults([]); // Ensure map is clear
+                setRoute(null);
                 return true;
             }
             if (searchActive) { setSearchActive(false); return true; }
             if (navState !== 'hidden') {
                 setNavState('hidden');
-                setRoute(null); // Clear route from map
-                setSelectedPlace(null); // Clear pin
+                setRoute(null);
+                setSelectedPlace(null);
+                setSearchResults([]); // Ensure map is clear
+                setRouteError(null);
                 return true;
             }
             if (resultsState !== 'hidden') {
@@ -80,6 +90,7 @@ export default function HomeScreen() {
                 setSelectedPlace(null);
                 setSearchResults([]);
                 setRoute(null);
+                setRouteError(null);
                 return true;
             }
             return false;
@@ -108,19 +119,51 @@ export default function HomeScreen() {
         setPivotActive(false); // Close Pivot Screen
         setResultsState('hidden');
         setNavState('peek');
+        setRouteError(null); // Clear previous errors
+
+        // Always reset to Driving (Car View) first
+        setTransportMode('driving');
 
         if (userLocation && selectedPlace) {
             const r = await api.getRoute(
                 { lat: userLocation.latitude, lon: userLocation.longitude },
-                { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) }
+                { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) },
+                'driving' // Explicitly use driving
             );
-            setRoute(r);
+            if (r) {
+                setRoute(r);
+            } else {
+                setRoute(null);
+                setRouteError("No route found.");
+            }
+        }
+    };
+
+    const handleTransportModeChange = async (mode: 'driving' | 'walking' | 'transit') => {
+        setTransportMode(mode);
+        setRouteError(null);
+        setRoute(null); // Clear old route while loading? Or keep it? keeping is better UX but loading indicator needed.
+        // For simplicity, we keep old route until new one arrives, or error.
+
+        if (userLocation && selectedPlace) {
+            const r = await api.getRoute(
+                { lat: userLocation.latitude, lon: userLocation.longitude },
+                { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) },
+                mode
+            );
+            if (r) {
+                setRoute(r);
+            } else {
+                setRoute(null);
+                setRouteError(`No ${mode} route available.`);
+            }
         }
     };
 
     const handleStartNavigation = () => {
         setNavState('hidden');
         setActiveNavigation(true);
+        setIsFollowing(true); // Ensure we start following
         Speech.speak("Driving mode started.");
     };
 
@@ -145,6 +188,8 @@ export default function HomeScreen() {
                 destination={selectedPlace}
                 results={searchResults}
                 route={route}
+                mapType={mapType}
+                showLabels={showLabels}
                 onMapPress={handleMapPress}
                 onPinPress={(item) => {
                     if (item) {
@@ -156,12 +201,20 @@ export default function HomeScreen() {
                 cameraTrigger={cameraTrigger}
                 onRegionChange={setMapRegion}
                 cameraMode={activeNavigation ? 'navigation' : 'default'}
+                isFollowing={isFollowing}
+                onFollowChange={setIsFollowing}
+                onHeadingChange={setMapHeading}
             />
 
             {/* Active Navigation Overlay */}
             {activeNavigation && (
                 <ActiveNavigation
                     route={route}
+                    userLocation={userLocation}
+                    isFollowing={isFollowing}
+                    onRecenter={() => setIsFollowing(true)}
+                    mapHeading={mapHeading}
+                    useMiles={useMiles}
                     onStopConfig={() => {
                         setActiveNavigation(false);
                         setRoute(null);
@@ -200,16 +253,32 @@ export default function HomeScreen() {
                         state={navState}
                         onStateChange={setNavState}
                         onStartNavigation={handleStartNavigation}
+                        transportMode={transportMode}
+                        onModeChange={handleTransportModeChange}
+                        error={routeError}
+                        useMiles={useMiles}
                     />
 
-                    <PivotScreen
-                        item={selectedPlace}
-                        active={pivotActive}
-                        onClose={() => {
-                            setPivotActive(false);
-                            setSelectedPlace(null); // Remove pin when closing
-                        }}
-                        onGetDirections={handleGetDirections}
+                    {pivotActive && (
+                        <PivotScreen
+                            item={selectedPlace}
+                            onClose={() => {
+                                setPivotActive(false);
+                                setSelectedPlace(null); // Remove pin when closing
+                            }}
+                            onGetDirections={handleGetDirections}
+                        />
+                    )}
+
+                    <OptionsMenu
+                        active={optionsActive}
+                        onClose={() => setOptionsActive(false)}
+                        useMiles={useMiles}
+                        onUseMilesChange={setUseMiles}
+                        mapType={mapType}
+                        onMapTypeChange={setMapType}
+                        showLabels={showLabels}
+                        onShowLabelsChange={setShowLabels}
                     />
                 </>
             )}
@@ -222,6 +291,7 @@ export default function HomeScreen() {
                     setUserLocation(location.coords);
                     setCameraTrigger(prev => prev + 1);
                 }}
+                onLayersPress={() => setOptionsActive(true)}
             />
         </View>
     );

@@ -4,18 +4,18 @@ import Animated, { useAnimatedStyle, withTiming, Easing, SharedValue } from 'rea
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AppBarProps {
     hidden: boolean;
     onSearchPress: () => void;
     onLocatePress: () => void;
+    onLayersPress: () => void;
 }
 
 const BAR_HEIGHT = 72;
 
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-export function AppBar({ hidden, onSearchPress, onLocatePress }: AppBarProps) {
+export function AppBar({ hidden, onSearchPress, onLocatePress, onLayersPress }: AppBarProps) {
     const insets = useSafeAreaInsets();
     const [showLabels, setShowLabels] = React.useState(false);
 
@@ -57,6 +57,13 @@ export function AppBar({ hidden, onSearchPress, onLocatePress }: AppBarProps) {
                 </Svg>
             </CircleButton>
 
+            <CircleButton onPress={onLayersPress} label="options" showLabel={showLabels}>
+                {/* Layers Icon */}
+                <Svg width={22} height={22} fill="white" viewBox="0 0 24 24">
+                    <Path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z" />
+                </Svg>
+            </CircleButton>
+
 
             <TouchableOpacity
                 style={{ padding: 10, position: 'absolute', right: 20, bottom: insets.bottom + 15 }}
@@ -75,7 +82,7 @@ function CircleButton({ children, onPress, label, showLabel }: { children: React
                 {children}
             </TouchableOpacity>
             {showLabel && (
-                <Text style={{ color: 'white', fontSize: 12, marginTop: 4, fontFamily: 'System' }}>{label}</Text>
+                <Text style={{ color: 'white', fontSize: 12, marginTop: 4, fontFamily: 'OpenSans_400Regular' }}>{label}</Text>
             )}
         </View>
     );
