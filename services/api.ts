@@ -199,7 +199,7 @@ export const api = {
                 }
 
                 // Standard Driving/Walking
-                const rawManeuver = step.maneuver || '';
+                const rawManeuver = step.maneuver || 'straight';
                 let type = 'turn';
                 let modifier = 'straight';
 
@@ -212,8 +212,8 @@ export const api = {
                 if (rawManeuver.includes('exit') || rawManeuver.includes('ramp')) type = 'off ramp';
 
                 // Fallback (Walking uses "turn-left" etc too)
-                if (!rawManeuver && step.html_instructions?.toLowerCase().includes('left')) modifier = 'left';
-                if (!rawManeuver && step.html_instructions?.toLowerCase().includes('right')) modifier = 'right';
+                if ((!step.maneuver) && step.html_instructions?.toLowerCase().includes('left')) modifier = 'left';
+                if ((!step.maneuver) && step.html_instructions?.toLowerCase().includes('right')) modifier = 'right';
                 if (step.travel_mode === 'WALKING' && !modifier) type = 'walk';
 
                 return {
@@ -222,7 +222,8 @@ export const api = {
                         location: [step.start_location.lng, step.start_location.lat], // [Lon, Lat]
                         type: type,
                         modifier: modifier,
-                        bearing_after: 0, // Google doesn't easily provide this per step, we might need to calc
+                        icon: rawManeuver, // Store raw google maneuver string for icon fetching
+                        bearing_after: 0,
                     },
                     distance: step.distance.value,
                     duration: step.duration.value,
