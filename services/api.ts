@@ -60,11 +60,13 @@ export const api = {
 
     // Text Search (Google Places) - With Pagination for More Results
     // Default radius: 50 miles = 80,467 meters
-    async searchPlaces(query: string, location?: { lat: number; lon: number }, radius: number = 80467): Promise<SearchResult[]> {
+    // applyRadiusFilter: if true, filter out results beyond radius (for "near me" searches)
+    //                   if false, just bias results but don't filter (for "in london" searches)
+    async searchPlaces(query: string, location?: { lat: number; lon: number }, radius: number = 80467, applyRadiusFilter: boolean = true): Promise<SearchResult[]> {
         try {
             let url = `${GOOGLE_BASE_URL}/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
             if (location) {
-                // Bias results to location
+                // Bias results to location (Google will return results near this location)
                 url += `&location=${location.lat},${location.lon}&radius=${radius}`;
             }
 
@@ -115,11 +117,15 @@ export const api = {
 
             // Filter and sort by distance if location is available
             if (location) {
-                const radiusKm = radius / 1000;
-                allResults = allResults.filter(r => {
-                    const dist = this.getDistance(location.lat, location.lon, parseFloat(r.lat), parseFloat(r.lon));
-                    return dist <= radiusKm;
-                });
+                // Only filter by radius for "near me" searches, not for "in london" searches
+                if (applyRadiusFilter) {
+                    const radiusKm = radius / 1000;
+                    allResults = allResults.filter(r => {
+                        const dist = this.getDistance(location.lat, location.lon, parseFloat(r.lat), parseFloat(r.lon));
+                        return dist <= radiusKm;
+                    });
+                }
+                // Always sort by distance
                 allResults.sort((a, b) => {
                     const distA = this.getDistance(location.lat, location.lon, parseFloat(a.lat), parseFloat(a.lon));
                     const distB = this.getDistance(location.lat, location.lon, parseFloat(b.lat), parseFloat(b.lon));

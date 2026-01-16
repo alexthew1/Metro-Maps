@@ -102,7 +102,12 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                     searchLocation = { lat: userLocation.latitude, lon: userLocation.longitude };
                 }
 
-                const data = await api.searchPlaces(query, searchLocation);
+                // Detect if query contains a location (e.g., "restaurants in London")
+                // If so, don't filter by radius - let Google return results from that location
+                const hasLocationInQuery = /\b(in|near|at|around)\s+\w+/i.test(query);
+                const applyFilter = !hasLocationInQuery;
+
+                const data = await api.searchPlaces(query, searchLocation, 80467, applyFilter);
                 setResults(data);
                 setLoading(false);
             } else {
