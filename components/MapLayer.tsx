@@ -358,10 +358,26 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
 
         // Priority: Route > Results > Destination
         if (route && route.coordinates.length > 0) {
-            mapRef.current.fitToCoordinates(route.coordinates, {
-                edgePadding: { top: 50, right: 50, bottom: 200, left: 50 },
-                animated: true,
-            });
+            // Use Google Directions bounds if available for accurate centering
+            if (route.bounds) {
+                const { northeast, southwest } = route.bounds;
+                mapRef.current.fitToCoordinates(
+                    [
+                        { latitude: northeast.lat, longitude: northeast.lng },
+                        { latitude: southwest.lat, longitude: southwest.lng },
+                    ],
+                    {
+                        edgePadding: { top: 50, right: 50, bottom: 200, left: 50 },
+                        animated: true,
+                    }
+                );
+            } else {
+                // Fallback to fitting all coordinates
+                mapRef.current.fitToCoordinates(route.coordinates, {
+                    edgePadding: { top: 50, right: 50, bottom: 200, left: 50 },
+                    animated: true,
+                });
+            }
             return;
         }
 

@@ -34,6 +34,10 @@ export interface RouteResult {
     geometry: string; // polyline string
     coordinates: { latitude: number; longitude: number }[]; // decoded
     maneuvers: any[]; // refined later
+    bounds?: { // Google Directions viewport bounds
+        northeast: { lat: number; lng: number };
+        southwest: { lat: number; lng: number };
+    };
 }
 
 export const api = {
@@ -280,9 +284,10 @@ export const api = {
             return {
                 distance: leg.distance.value,
                 duration: leg.duration.value,
-                geometry: route.overview_polyline.points, // Keep overview for fail-safe or bounds
+                geometry: route.overview_polyline.points, // Keep overview for fail-safe
                 coordinates: allCoordinates, // Use detailed coordinates
                 maneuvers: maneuvers,
+                bounds: route.bounds, // Google Directions viewport bounds
             };
         } catch (error) {
             console.error('Routing failed:', error);
