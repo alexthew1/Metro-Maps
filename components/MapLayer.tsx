@@ -520,6 +520,10 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                 showsUserLocation={cameraMode !== 'navigation'} // Hide default blue dot in nav
                 showsMyLocationButton={false}
                 showsCompass={false}
+                showsBuildings={true}
+                showsIndoors={true}
+                pitchEnabled={true}
+                rotateEnabled={true}
                 onPanDrag={() => onFollowChange?.(false)}
                 onPress={onMapPress}
                 onPoiClick={(e) => {
