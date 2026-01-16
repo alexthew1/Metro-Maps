@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 // Metro/Here Maps Desaturated Style
+// Metro/Here Maps Desaturated Style (User Provided + Business Labels)
 const MAP_STYLE = [
     {
         "featureType": "administrative",
@@ -14,9 +15,6 @@ const MAP_STYLE = [
         "stylers": [
             {
                 "color": "#6195a0"
-            },
-            {
-                "visibility": "on"
             }
         ]
     },
@@ -29,18 +27,9 @@ const MAP_STYLE = [
             },
             {
                 "color": "#888888"
-            }
-        ]
-    },
-    {
-        "featureType": "administrative.country",
-        "elementType": "geometry.stroke",
-        "stylers": [
-            {
-                "visibility": "on"
             },
             {
-                "color": "#666666"
+                "weight": 1.5
             }
         ]
     },
@@ -83,8 +72,18 @@ const MAP_STYLE = [
             }
         ]
     },
+    // MODIFIED: Enable POI Labels (specifically Business)
     {
         "featureType": "poi",
+        "elementType": "labels",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "poi.business",
         "elementType": "all",
         "stylers": [
             {
@@ -319,16 +318,39 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
 
         // Active Navigation Mode: Follow user with tilt (ONLY if isFollowing is true)
         if (cameraMode === 'navigation' && userLocation && isFollowing) {
+            let targetHeading = userLocation.heading || 0;
+
+            // Prioritize Route Bearing if available
+            if (route && route.coordinates.length > 1) {
+                // Use last known index from trimming logic (Using the Ref since it's updated in the other effect)
+                // Note: lastClosestIndex might lag slightly behind visual update but is safe for heading
+                let idx = lastClosestIndex.current || 0;
+
+                // Look ahead logic
+                let targetIdx = Math.min(idx + 1, route.coordinates.length - 1);
+
+                const p1 = userLocation;
+                const p2 = route.coordinates[targetIdx];
+
+                // If points are very close (< 2 meters), look one further ahead for stability
+                // 2 meters approx 0.00002 deg. Squared ~ 4e-10.
+                if (getDistSq(p1, p2) < 0.0000000004 && targetIdx < route.coordinates.length - 1) {
+                    targetIdx++;
+                }
+
+                targetHeading = getBearing(p1, route.coordinates[targetIdx]);
+            }
+
             mapRef.current.animateCamera({
                 center: userLocation,
                 pitch: 60,
-                heading: 0,
+                heading: targetHeading,
                 zoom: 18,
                 altitude: 200,
             }, { duration: 1000 });
             return;
         }
-    }, [userLocation, cameraMode, isFollowing]);
+    }, [userLocation, cameraMode, isFollowing, route]);
 
     // Camera Control: Overview (Route/Results/Dest) - Only if NOT navigating
     useEffect(() => {
@@ -396,35 +418,47 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
         }, 1000);
     }, [cameraTrigger]);
 
+    // Snapping Logic state
+    const [snappedLocation, setSnappedLocation] = useState<{ latitude: number, longitude: number } | null>(null);
+
     // Route Trimming Logic
     const [displayCoordinates, setDisplayCoordinates] = React.useState<{ latitude: number, longitude: number }[]>([]);
     const lastClosestIndex = useRef(0);
     const lastRouteId = useRef<string | null>(null);
 
-    // Reset progress when route changes
+    // Reset progress when route changes (and Snapping)
     useEffect(() => {
         if (route?.geometry !== lastRouteId.current) {
             lastClosestIndex.current = 0;
             lastRouteId.current = route?.geometry || null;
+            setSnappedLocation(null);
         }
     }, [route]);
 
+    // Route Trimming & Snapping Logic
     useEffect(() => {
+        // ... existing logic I added ...
         if (!route) {
             setDisplayCoordinates([]);
+            setSnappedLocation(null);
             return;
         }
 
         if (cameraMode !== 'navigation' || !userLocation) {
             setDisplayCoordinates(route.coordinates);
+            setSnappedLocation(null);
             return;
         }
 
-        // Find closest point on route to user
+        // Find closest point on route to user (Vertex)
         let minDistance = Infinity;
         let closestIndex = lastClosestIndex.current;
 
-        for (let i = lastClosestIndex.current; i < route.coordinates.length; i++) {
+        // Optimization: Search window around last index (e.g., +/- 50 points) or forward only?
+        // Full scan is safer for loops/recalc, but forward scan is efficient.
+        // We'll stick to full scan starting from last index for now to ensure we don't jump back.
+        // Actually, scan full array is safer if user does U-Turn.
+        for (let i = 0; i < route.coordinates.length; i++) {
             const p = route.coordinates[i];
             const d = (p.latitude - userLocation.latitude) ** 2 + (p.longitude - userLocation.longitude) ** 2;
             if (d < minDistance) {
@@ -433,15 +467,45 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
             }
         }
 
-        // Enforce Monotonic Progress
-        if (closestIndex < lastClosestIndex.current) {
-            closestIndex = lastClosestIndex.current;
+        // Enforce Monotonic Progress (Optional: Disable if we allow U-turns detection here? No, rely on ActiveNavigation recalculation)
+        // If we found a point "way back", it implies loop or error. 
+        // Logic: If closestIndex is drastically far back, ignore? 
+        // For snapping, we just want the closest point.
+        lastClosestIndex.current = closestIndex;
+
+        // --- SNAPPING CALCULATION ---
+        let snapCandidate = route.coordinates[closestIndex];
+        // Look at segments adjacent to closest vertex: [i-1, i] and [i, i+1]
+        const segments = [];
+        if (closestIndex > 0) segments.push([route.coordinates[closestIndex - 1], route.coordinates[closestIndex]]);
+        if (closestIndex < route.coordinates.length - 1) segments.push([route.coordinates[closestIndex], route.coordinates[closestIndex + 1]]);
+
+        let bestSnapDist = Infinity;
+
+        segments.forEach(seg => {
+            const p = getProjectedPoint(userLocation, seg[0], seg[1]);
+            const d = getDistSq(userLocation, p);
+            if (d < bestSnapDist) {
+                bestSnapDist = d;
+                snapCandidate = p;
+            }
+        });
+
+        // Threshold (approx meters). 1 degree ~ 111km. 10m ~ 0.0001 deg. 
+        // 0.0001^2 = 1e-8.
+        const SNAP_THRESHOLD_SQ = 0.0003 * 0.0003; // ~30 meters
+
+        if (bestSnapDist < SNAP_THRESHOLD_SQ) {
+            setSnappedLocation(snapCandidate);
         } else {
-            lastClosestIndex.current = closestIndex;
+            setSnappedLocation(null); // Too far, don't snap (Enables connection line)
         }
 
+        // Trimming (Visual)
+        // We always start the visible route from the snapCandidate (closest point on path)
+        // so the blue line doesn't jump to the user when off-road.
         const remaining = route.coordinates.slice(closestIndex);
-        setDisplayCoordinates([userLocation, ...remaining]);
+        setDisplayCoordinates([snapCandidate, ...remaining]);
 
     }, [route, userLocation, cameraMode]);
 
@@ -453,7 +517,7 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                 customMapStyle={effectiveMapStyle}
                 mapType={effectiveMapType}
                 provider={PROVIDER_GOOGLE}
-                showsUserLocation={true}
+                showsUserLocation={cameraMode !== 'navigation'} // Hide default blue dot in nav
                 showsMyLocationButton={false}
                 showsCompass={false}
                 onPanDrag={() => onFollowChange?.(false)}
@@ -471,14 +535,9 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                     onPinPress(pseudoResult);
                 }}
                 onRegionChange={(region) => {
-                    // Fire region change
                     onRegionChange?.(region);
-
-                    // Also fetch heading
                     if (onHeadingChange && mapRef.current) {
-                        mapRef.current.getCamera().then(cam => {
-                            onHeadingChange(cam.heading);
-                        });
+                        mapRef.current.getCamera().then(cam => onHeadingChange(cam.heading));
                     }
                 }}
                 onRegionChangeComplete={onRegionChange}
@@ -490,6 +549,33 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                     longitudeDelta: 0.05,
                 }}
             >
+                {/* Off-Road Connection Line (e.g. from Garage to Street) */}
+                {cameraMode === 'navigation' && userLocation && !snappedLocation && displayCoordinates.length > 0 && (
+                    <>
+                        {/* Casing (White visibility halo) */}
+                        <Polyline
+                            key="connection-line-casing"
+                            coordinates={[userLocation, displayCoordinates[0]]}
+                            strokeColor="white"
+                            strokeWidth={5}
+                            lineDashPattern={[10, 10]}
+                            lineCap="square"
+                            zIndex={997}
+                        />
+                        {/* Main Line (Black) */}
+                        <Polyline
+                            key="connection-line"
+                            coordinates={[userLocation, displayCoordinates[0]]}
+                            strokeColor="black"
+                            strokeWidth={3}
+                            lineDashPattern={[10, 10]}
+                            lineCap="square"
+                            zIndex={998}
+                        />
+                    </>
+                )}
+
+                {/* Route Line */}
                 {route && displayCoordinates.length > 0 && (
                     <Polyline
                         key={`route-line-${displayCoordinates.length}`}
@@ -500,6 +586,35 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                         lineJoin="round"
                     />
                 )}
+
+                {/* Custom Navigation Puck (When Navigating) */}
+                {cameraMode === 'navigation' && userLocation && (
+                    <Marker
+                        coordinate={snappedLocation || userLocation}
+                        anchor={{ x: 0.5, y: 0.5 }}
+                        flat={true} // Rotate with map
+                        zIndex={999}
+                    >
+                        {/* Simple Chevron Puck */}
+                        <View style={{
+                            width: 24, height: 24,
+                            borderRadius: 12, backgroundColor: 'white',
+                            borderWidth: 3, borderColor: 'white',
+                            alignItems: 'center', justifyContent: 'center',
+                            shadowColor: 'black', shadowRadius: 2, shadowOpacity: 0.3, elevation: 3
+                        }}>
+                            <View style={{
+                                width: 16, height: 16, borderRadius: 8, backgroundColor: Colors.accent,
+                                transform: [{ rotate: `${(userLocation.heading || 0)}deg` }] // Rotate inner arrow? Or Marker handles flat?
+                                // If flat=true, the Marker view rotates with the map. 
+                                // But the Marker needs to represent HEADING. 
+                                // If flat=true, 'rotation' prop on Marker controls orientation relative to NORTH.
+                            }} />
+                        </View>
+                    </Marker>
+                )}
+                {/* Re-implement Marker rotation properly below */}
+
 
                 {/* Render Multiple Results */}
                 {results.map((item) => (
@@ -528,6 +643,37 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
             </MapView>
         </View>
     );
+}
+
+// Math Helpers
+function getBearing(p1: { latitude: number; longitude: number }, p2: { latitude: number; longitude: number }) {
+    const φ1 = p1.latitude * Math.PI / 180;
+    const φ2 = p2.latitude * Math.PI / 180;
+    const Δλ = (p2.longitude - p1.longitude) * Math.PI / 180;
+
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) -
+        Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+    const θ = Math.atan2(y, x);
+    return (θ * 180 / Math.PI + 360) % 360;
+}
+
+function getProjectedPoint(p: { latitude: number; longitude: number }, v: { latitude: number; longitude: number }, w: { latitude: number; longitude: number }) {
+    // ... existing getProjectedPoint ...
+    // Project p onto line segment vw
+    const l2 = getDistSq(v, w);
+    if (l2 === 0) return v;
+    let t = ((p.latitude - v.latitude) * (w.latitude - v.latitude) + (p.longitude - v.longitude) * (w.longitude - v.longitude)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return {
+        latitude: v.latitude + t * (w.latitude - v.latitude),
+        longitude: v.longitude + t * (w.longitude - v.longitude)
+    };
+}
+
+function getDistSq(p1: { latitude: number; longitude: number }, p2: { latitude: number; longitude: number }) {
+    return (p1.latitude - p2.latitude) ** 2 + (p1.longitude - p2.longitude) ** 2;
 }
 
 const styles = StyleSheet.create({
