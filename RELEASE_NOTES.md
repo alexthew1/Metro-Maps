@@ -7,28 +7,26 @@
 ## 🆕 What's New
 
 ### Navigation Experience
-- **Metro-Style Icons**: Replaced Google bitmap icons with crisp vector `MaterialCommunityIcons` for all maneuvers (turns, U-turns, ramps, merges).
-- **Smart Arrow Fallback**: Generic "straight" instructions now show a dynamically rotating arrow based on route bearing.
-- **Hysteresis Turn Triggers**: Navigation updates now fire *after* completing a turn (not before entering), preventing premature instruction changes.
+- **Voice Navigation**: Turn-by-turn voice guidance using `expo-speech` announces upcoming maneuvers.
+- **Metro-Style Icons**: Crisp vector icons for all maneuvers (turns, U-turns, ramps, merges).
+- **Smart Arrow Fallback**: Dynamically rotating arrow for generic "straight" instructions.
+- **Hysteresis Turn Triggers**: Updates fire *after* completing turns, not before.
 
 ### Map Enhancements
-- **Route Snapping**: Your position smoothly "glides" along the route line, eliminating GPS jitter.
-- **Heading-Locked Camera**: Map always faces the direction of the route (not raw compass), creating a stable "course up" experience.
-- **Off-Road Guidance**: A dashed black & white "connection line" now shows how to get from your current position (e.g., parking lot) to the main route.
-- **New Map Style**: Updated color palette with visible state borders and preserved business POI labels.
+- **Route Snapping**: Position smoothly glides along the route line.
+- **Heading-Locked Camera**: Map faces the route direction, not raw compass.
+- **Off-Road Guidance**: Dashed line shows path from parking lot to main route.
+- **New Map Style**: State borders visible, business POI labels preserved.
 
 ### Route Quality
-- **High-Fidelity Polylines**: Routes now use detailed step-by-step coordinates instead of simplified overview paths.
-
-### UI/UX Improvements
-- **BottomSheet Height**: Expanded state now covers 90% of screen.
-- **Recalculation Handler**: Automatic route re-fetching when you deviate from the path.
+- **High-Fidelity Polylines**: Detailed step-by-step coordinates.
+- **Auto-Recalculation**: Re-routes automatically when you deviate.
 
 ---
 
 ## 🔧 Technical
 - Babel & TypeScript config cleanup
-- APK build artifacts excluded from version control
+- APK artifacts excluded from git
 
 ---
 
