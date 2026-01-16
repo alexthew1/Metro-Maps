@@ -90,23 +90,19 @@ export default function HomeScreen() {
                 return;
             }
 
-            // Simple Polling Loop (Robustness > Efficiency for Prototype)
-            const interval = setInterval(async () => {
-                try {
-                    // Re-check services in case user toggled it off
-                    const stillEnabled = await Location.hasServicesEnabledAsync();
-                    if (!stillEnabled) return;
-
-                    const location = await Location.getCurrentPositionAsync({
-                        accuracy: Location.Accuracy.BestForNavigation
-                    });
+            // Use watchPositionAsync for better accuracy and efficiency
+            const subscription = await Location.watchPositionAsync(
+                {
+                    accuracy: Location.Accuracy.BestForNavigation,
+                    timeInterval: 500,      // Update every 500ms
+                    distanceInterval: 1,    // Update every 1 meter moved
+                },
+                (location) => {
                     setUserLocation(location.coords);
-                } catch (e) {
-                    // Location might be temporarily unavailable
                 }
-            }, 1000);
+            );
 
-            return () => clearInterval(interval);
+            return () => subscription.remove();
         })();
     }, []);
 

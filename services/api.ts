@@ -183,7 +183,7 @@ export const api = {
         return null;
     },
 
-    // KEEPING OSRM FOR ROUTING (Google Directions API is not requested/needed yet and OSRM is free)
+    // Routing via Google Directions API (High-fidelity step polylines)
     async getRoute(start: { lat: number; lon: number }, end: { lat: number; lon: number }, mode: 'driving' | 'walking' | 'transit' = 'driving'): Promise<RouteResult | null> {
         try {
             console.log(`Fetching Google Directions (${mode})...`);
