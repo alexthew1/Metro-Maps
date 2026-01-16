@@ -23,6 +23,7 @@ export interface SearchResult {
     website?: string;
     reviews?: any[];
     description?: string; // Derived from editorial_summary
+    url?: string; // Google Maps URL
 }
 
 export interface RouteResult {
@@ -39,11 +40,22 @@ export const api = {
         return `${GOOGLE_BASE_URL}/photo?maxwidth=${maxWidth}&photo_reference=${reference}&key=${GOOGLE_API_KEY}`;
     },
 
+    // Helper: Calculate Haversine Distance (in km)
+    getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    },
+
     // Text Search (Google Places)
     async searchPlaces(query: string, location?: { lat: number; lon: number }, radius: number = 5000): Promise<SearchResult[]> {
         try {
             let url = `${GOOGLE_BASE_URL}/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
-
             if (location) {
                 // Bias results to location
                 url += `&location=${location.lat},${location.lon}&radius=${radius}`;
@@ -57,7 +69,7 @@ export const api = {
                 return [];
             }
 
-            return (data.results || []).map((item: any) => ({
+            let results = (data.results || []).map((item: any) => ({
                 place_id: item.place_id,
                 lat: item.geometry.location.lat.toString(),
                 lon: item.geometry.location.lng.toString(),
@@ -71,6 +83,18 @@ export const api = {
                 vicinity: item.formatted_address,
                 isOpen: item.opening_hours?.open_now,
             }));
+
+            // Sort by distance if location is available
+            if (location) {
+                results.sort((a, b) => {
+                    const distA = this.getDistance(location.lat, location.lon, parseFloat(a.lat), parseFloat(a.lon));
+                    const distB = this.getDistance(location.lat, location.lon, parseFloat(b.lat), parseFloat(b.lon));
+                    return distA - distB;
+                });
+            }
+
+            return results;
+
         } catch (error) {
             console.error('Search failed:', error);
             return [];
@@ -115,6 +139,7 @@ export const api = {
                 reviews: r.reviews,
                 isOpen: r.opening_hours?.open_now,
                 description: r.editorial_summary?.overview,
+                url: r.url,
             };
         } catch (error) {
             console.error('Get details failed:', error);
@@ -214,14 +239,24 @@ export const api = {
                 }
             });
 
+            // Concatenate all detailed polylines from steps for high fidelity
+            const allCoordinates: { latitude: number; longitude: number }[] = [];
+
+            leg.steps.forEach((step: any) => {
+                const stepPoints = decode(step.polyline.points);
+                stepPoints.forEach((point) => {
+                    allCoordinates.push({
+                        latitude: point[0],
+                        longitude: point[1],
+                    });
+                });
+            });
+
             return {
                 distance: leg.distance.value,
                 duration: leg.duration.value,
-                geometry: encodedPolyline,
-                coordinates: decodedPoints.map((point) => ({
-                    latitude: point[0],
-                    longitude: point[1],
-                })),
+                geometry: route.overview_polyline.points, // Keep overview for fail-safe or bounds
+                coordinates: allCoordinates, // Use detailed coordinates
                 maneuvers: maneuvers,
             };
         } catch (error) {
