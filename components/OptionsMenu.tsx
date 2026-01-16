@@ -42,7 +42,7 @@ export function OptionsMenu({ active, onClose, useMiles, onUseMilesChange, mapTy
                         <View style={[styles.mapTile, mapType === 'standard' && styles.mapTileSelected]}>
                             <Image source={THUMB_MAP} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                         </View>
-                        <Text style={[GlobalStyles.metroXS, { color: mapType === 'standard' ? Colors.accent : '#fff', marginTop: 8 }]}>map</Text>
+                        <Text style={{ fontFamily: 'OpenSans_400Regular', fontSize: 14, color: mapType === 'standard' ? Colors.accent : '#fff', marginTop: 8 }}>map</Text>
                     </TouchableOpacity>
 
                     {/* Satellite Map Tile */}
@@ -50,7 +50,7 @@ export function OptionsMenu({ active, onClose, useMiles, onUseMilesChange, mapTy
                         <View style={[styles.mapTile, mapType === 'satellite' && styles.mapTileSelected]}>
                             <Image source={THUMB_SAT} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                         </View>
-                        <Text style={[GlobalStyles.metroXS, { color: mapType === 'satellite' ? Colors.accent : '#fff', marginTop: 8 }]}>satellite</Text>
+                        <Text style={{ fontFamily: 'OpenSans_400Regular', fontSize: 14, color: mapType === 'satellite' ? Colors.accent : '#fff', marginTop: 8 }}>satellite</Text>
                     </TouchableOpacity>
                 </View>
 

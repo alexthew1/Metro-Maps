@@ -69,7 +69,7 @@ export function AppBar({ hidden, onSearchPress, onLocatePress, onLayersPress }: 
                 style={{ padding: 10, position: 'absolute', right: 20, bottom: insets.bottom + 15 }}
                 onPress={() => setShowLabels(!showLabels)}
             >
-                <Text style={{ fontSize: 32, color: 'white', fontWeight: 'bold', lineHeight: 28 }}>...</Text>
+                <Text style={{ fontSize: 32, color: 'white', lineHeight: 28, fontFamily: 'OpenSans_700Bold' }}>...</Text>
             </TouchableOpacity>
         </Animated.View>
     );

@@ -15,6 +15,7 @@ interface SearchCurtainProps {
     onCategorySearch?: (results: SearchResult[]) => void;
     region?: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
     userLocation?: { latitude: number; longitude: number } | null;
+    favorites?: SearchResult[];
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -24,7 +25,7 @@ const CATEGORIES = [
     'Gas Station', 'Hotel', 'Parking', 'Grocery', 'Pharmacy', 'Bank', 'Bar', 'ATM'
 ];
 
-export function SearchCurtain({ active, onClose, onResultSelected, region, onCategorySearch, userLocation }: SearchCurtainProps) {
+export function SearchCurtain({ active, onClose, onResultSelected, region, onCategorySearch, userLocation, favorites }: SearchCurtainProps) {
     const insets = useSafeAreaInsets();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
@@ -94,17 +95,14 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                     }
                 }
 
-                // Default: regular Nominatim search
-                let viewbox = undefined;
-                if (region) {
-                    const left = region.longitude - region.longitudeDelta / 2;
-                    const top = region.latitude + region.latitudeDelta / 2;
-                    const right = region.longitude + region.longitudeDelta / 2;
-                    const bottom = region.latitude - region.latitudeDelta / 2;
-                    viewbox = `${left},${top},${right},${bottom}`;
+                // Default: Google Places Search
+                // We prioritize user location over viewbox for the API call to enable sorting
+                let searchLocation = undefined;
+                if (userLocation) {
+                    searchLocation = { lat: userLocation.latitude, lon: userLocation.longitude };
                 }
 
-                const data = await api.searchPlaces(query, viewbox);
+                const data = await api.searchPlaces(query, searchLocation);
                 setResults(data);
                 setLoading(false);
             } else {
@@ -194,9 +192,16 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
 
             <View style={styles.resultsContainer}>
                 <FlatList
-                    data={results}
+                    data={results.length > 0 ? results : (favorites || [])}
                     keyExtractor={(item) => item.place_id.toString()}
                     contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+                    ListHeaderComponent={() => (
+                        <>
+                            {results.length === 0 && favorites && favorites.length > 0 && (
+                                <Text style={[GlobalStyles.metroMD, { marginBottom: 10, opacity: 0.6 }]}>favorites</Text>
+                            )}
+                        </>
+                    )}
                     renderItem={({ item }) => (
                         <TouchableOpacity style={styles.suggestion} onPress={() => onResultSelected(item)}>
                             <View>
@@ -251,9 +256,6 @@ const styles = StyleSheet.create({
     },
     suggestionText: {
         fontSize: 22,
-        textShadowColor: 'rgba(0,0,0,0.8)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 4,
     }
 
 });

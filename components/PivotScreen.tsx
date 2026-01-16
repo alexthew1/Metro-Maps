@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Image, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Image, Linking, Platform, Share } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming, Easing, SlideInDown, SlideOutDown, useSharedValue, interpolate, Extrapolation } from 'react-native-reanimated';
 import PagerView from 'react-native-pager-view';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -16,14 +16,29 @@ interface PivotScreenProps {
     item: SearchResult | null;
     onClose: () => void;
     onGetDirections: () => void;
+    isFavorite: boolean;
+    onToggleFavorite: () => void;
 }
 
-export function PivotScreen({ item, onClose, onGetDirections }: PivotScreenProps) {
+const BAR_HEIGHT = 72;
+
+export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onToggleFavorite }: PivotScreenProps) {
     const insets = useSafeAreaInsets();
     const pagerRef = useRef<PagerView>(null);
     const [activePage, setActivePage] = useState(0);
     const scrollOffset = useSharedValue(0);
     const [details, setDetails] = useState<SearchResult | null>(item);
+    const [showLabels, setShowLabels] = useState(false);
+
+    // Unify App Bar Dimensions Logic
+    const baseHeight = showLabels ? BAR_HEIGHT + 20 : BAR_HEIGHT;
+    const totalHeight = baseHeight + insets.bottom;
+
+    const navBarStyle = useAnimatedStyle(() => {
+        return {
+            height: withTiming(totalHeight, { duration: 200 }),
+        };
+    }, [totalHeight]);
 
     useEffect(() => {
         let isMounted = true;
@@ -68,14 +83,14 @@ export function PivotScreen({ item, onClose, onGetDirections }: PivotScreenProps
         <Animated.View
             entering={SlideInDown.duration(300).easing(Easing.out(Easing.quad))}
             exiting={SlideOutDown.duration(200)}
-            style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom }]}
+            style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: 0 }]} // Handle paddingBottom in AppBar
         >
             {/* Background - Black for WP Style */}
             <View style={StyleSheet.absoluteFillObject} />
 
             {/* Title (Small, Uppercase, Top Left) */}
             <View style={{ paddingHorizontal: 20, marginBottom: 0 }}>
-                <Text style={[GlobalStyles.metroSM, { fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', color: '#fff', fontWeight: 'bold' }]} numberOfLines={1}>
+                <Text style={[GlobalStyles.metroSM, { fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', color: '#fff', fontFamily: 'OpenSans_700Bold' }]} numberOfLines={1}>
                     {details.display_name.toUpperCase()}
                 </Text>
             </View>
@@ -103,7 +118,7 @@ export function PivotScreen({ item, onClose, onGetDirections }: PivotScreenProps
             {/* Pager Content */}
             <PagerView
                 ref={pagerRef}
-                style={{ flex: 1 }}
+                style={{ flex: 1, marginBottom: totalHeight }} // Add margin to avoid overlap with absolute AppBar
                 initialPage={0}
                 onPageSelected={handlePageSelection}
                 onPageScroll={handlePageScroll}
@@ -111,7 +126,7 @@ export function PivotScreen({ item, onClose, onGetDirections }: PivotScreenProps
             >
                 {/* PAGE 1: ABOUT */}
                 <View key="1" style={styles.page}>
-                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+                    <ScrollView contentContainerStyle={{ padding: 20 }}>
                         <View style={{ gap: 20 }}>
                             {/* Mini Map */}
                             <View style={{ width: 140, height: 140, backgroundColor: '#333' }}>
@@ -152,7 +167,15 @@ export function PivotScreen({ item, onClose, onGetDirections }: PivotScreenProps
                             {details.phone && (
                                 <View style={{ marginTop: 10 }}>
                                     <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText]}>PHONE</Text>
-                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22 }]}>{details.phone}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22 }]} onPress={() => Linking.openURL(`tel:${details.phone}`)}>{details.phone}</Text>
+                                </View>
+                            )}
+
+                            {/* Website */}
+                            {details.website && (
+                                <View style={{ marginTop: 10 }}>
+                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText]}>WEBSITE</Text>
+                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: Colors.accent }]} onPress={() => Linking.openURL(details.website!)}>visit website</Text>
                                 </View>
                             )}
 
@@ -162,7 +185,7 @@ export function PivotScreen({ item, onClose, onGetDirections }: PivotScreenProps
 
                 {/* PAGE 2: PHOTOS */}
                 <View key="2" style={styles.page}>
-                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+                    <ScrollView contentContainerStyle={{ padding: 20 }}>
 
                         {/* "add a photo" button */}
                         <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
@@ -193,11 +216,11 @@ export function PivotScreen({ item, onClose, onGetDirections }: PivotScreenProps
 
                 {/* PAGE 3: REVIEWS */}
                 <View key="3" style={styles.page}>
-                    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 100 }}>
+                    <ScrollView contentContainerStyle={{ padding: 20 }}>
                         {details.reviews && details.reviews.length > 0 ? (
                             details.reviews.map((review: any, index: number) => (
                                 <View key={index} style={{ marginBottom: 32 }}>
-                                    <Text style={[GlobalStyles.metroMD, { fontWeight: 'bold', fontSize: 20, marginBottom: 4 }]}>{review.author_name}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { fontFamily: 'OpenSans_700Bold', fontSize: 20, marginBottom: 4 }]}>{review.author_name}</Text>
                                     <Text style={[GlobalStyles.metroMD, { color: Colors.accent, marginBottom: 8 }]}>{review.rating}/5 rating</Text>
                                     <Text style={[GlobalStyles.metroSM, { opacity: 0.9, lineHeight: 22, fontSize: 16 }]}>{review.text}</Text>
                                 </View>
@@ -208,6 +231,52 @@ export function PivotScreen({ item, onClose, onGetDirections }: PivotScreenProps
                     </ScrollView>
                 </View>
             </PagerView>
+
+            {/* Bottom App Bar */}
+            <Animated.View style={[
+                styles.appBar,
+                navBarStyle, // Apply animated height
+                {
+                    paddingBottom: insets.bottom,
+                    justifyContent: 'center',
+                    gap: 20,
+                }
+            ]}>
+                {/* Favorites Button */}
+                <TouchableOpacity style={styles.appBarButton} onPress={onToggleFavorite}>
+                    <View style={styles.circleButton}>
+                        <Ionicons name={isFavorite ? "star" : "star-outline"} size={20} color="white" />
+                    </View>
+                    {showLabels && <Text style={{ color: 'white', fontSize: 12, marginTop: 4, fontFamily: 'OpenSans_400Regular' }}>favorite</Text>}
+                </TouchableOpacity>
+
+                {/* Share Button */}
+                <TouchableOpacity style={styles.appBarButton} onPress={async () => {
+                    const url = details.url || `https://www.google.com/maps/search/?api=1&query=${details.lat},${details.lon}&query_place_id=${details.place_id}`;
+                    try {
+                        await Share.share({
+                            message: `${details.display_name}\n${url}`,
+                            url: url,
+                            title: details.display_name,
+                        });
+                    } catch (error) {
+                        // ignore
+                    }
+                }}>
+                    <View style={styles.circleButton}>
+                        <Ionicons name="share-social-outline" size={20} color="white" />
+                    </View>
+                    {showLabels && <Text style={{ color: 'white', fontSize: 12, marginTop: 4, fontFamily: 'OpenSans_400Regular' }}>share</Text>}
+                </TouchableOpacity>
+
+                {/* Expand Toggle */}
+                <TouchableOpacity
+                    style={{ padding: 10, position: 'absolute', right: 20, bottom: insets.bottom + 15 }}
+                    onPress={() => setShowLabels(!showLabels)}
+                >
+                    <Text style={{ fontSize: 32, color: 'white', lineHeight: 28, fontFamily: 'OpenSans_700Bold' }}>...</Text>
+                </TouchableOpacity>
+            </Animated.View>
         </Animated.View>
     );
 }
@@ -245,7 +314,6 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        height: 72,
         backgroundColor: '#1f1f1f', // Dark grey app bar
         flexDirection: 'row',
         alignItems: 'center',
@@ -255,12 +323,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         width: 64,
-        height: '100%',
+        paddingVertical: 10,
     },
     circleButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 48, // Updated to 48 to match AppBar
+        height: 48, // Updated to 48 to match AppBar
+        borderRadius: 24, // Updated to 24 to match AppBar
         borderWidth: 2,
         borderColor: '#fff',
         alignItems: 'center',

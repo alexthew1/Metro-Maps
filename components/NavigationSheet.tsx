@@ -49,7 +49,7 @@ export function NavigationSheet({ route, state, onStateChange, onStartNavigation
                     style={[styles.startButton, !route && { borderColor: '#555' }]}
                     disabled={!route}
                 >
-                    <Text style={[GlobalStyles.metroSM, { fontWeight: 'bold', color: route ? 'white' : '#555', fontSize: 16 }]}>start</Text>
+                    <Text style={[GlobalStyles.metroSM, { fontFamily: 'OpenSans_700Bold', color: route ? 'white' : '#555', fontSize: 16 }]}>start</Text>
                 </TouchableOpacity>
             </View>
 
@@ -72,7 +72,7 @@ export function NavigationSheet({ route, state, onStateChange, onStartNavigation
                     <Text style={[GlobalStyles.metroMD, { fontSize: 24, color: '#ff4444' }]}>{error}</Text>
                 ) : (
                     <>
-                        <Text style={[GlobalStyles.metroMD, { fontSize: 32, fontWeight: 'bold', lineHeight: 36 }]}>{durationMin} min</Text>
+                        <Text style={[GlobalStyles.metroMD, { fontSize: 32, fontFamily: 'OpenSans_700Bold', lineHeight: 36 }]}>{durationMin} min</Text>
                         <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { fontSize: 16, marginTop: -2 }]}>{distDisplay}</Text>
                     </>
                 )}
