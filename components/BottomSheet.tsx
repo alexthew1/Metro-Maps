@@ -8,7 +8,7 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Snap Points
 const PEEK_HEIGHT = SCREEN_HEIGHT * 0.20;
-const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.8;
+const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.9;
 const HIDDEN_Y = SCREEN_HEIGHT;
 const PEEK_Y = SCREEN_HEIGHT - PEEK_HEIGHT;
 const EXPANDED_Y = SCREEN_HEIGHT - EXPANDED_HEIGHT;
@@ -123,9 +123,8 @@ const styles = StyleSheet.create({
     },
     handleContainer: {
         backgroundColor: 'black',
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
-        // Minimum touch area handled by children padding
+        // borderBottomWidth: 1, // Removed for cleaner Metro look
+        // borderBottomColor: '#333',
     },
     contentContainer: {
         flex: 1,

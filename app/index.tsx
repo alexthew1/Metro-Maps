@@ -122,13 +122,28 @@ export default function HomeScreen() {
     }, [pivotActive, searchActive, navState, resultsState, optionsActive, activeNavigation]);
 
 
+    const [startPlace, setStartPlace] = useState<SearchResult | null>(null);
+    const [navStep, setNavStep] = useState<'setup' | 'routing'>('setup');
+    const [searchTarget, setSearchTarget] = useState<'destination' | 'origin'>('destination');
+
+    // ...
+
     // Actions
     const handleSearchSelect = (result: SearchResult) => {
-        setSelectedPlace(result);
-        setSearchResults([]); // Clear list on specific select
-        setSearchActive(false);
-        setResultsState('peek');
-        setPivotActive(true); // Also open pivot immediately for consistency
+        if (searchTarget === 'origin') {
+            setStartPlace(result);
+            setSearchActive(false);
+            // Don't change sheets, just stay in setup or wherever we were
+            // But we need to make sure we go back to the setup view if we were there
+            setNavState('expanded');
+            setSearchTarget('destination'); // Reset
+        } else {
+            // Destination selection (Standard)
+            setSelectedPlace(result);
+            setSearchResults([]);
+            setSearchActive(false);
+            setResultsState('peek');
+        }
     };
 
     const handleCategoryResults = (results: SearchResult[]) => {
@@ -141,17 +156,60 @@ export default function HomeScreen() {
     const handleGetDirections = async () => {
         setPivotActive(false); // Close Pivot Screen
         setResultsState('hidden');
-        setNavState('peek');
-        setRouteError(null); // Clear previous errors
+        setRouteError(null);
 
         // Always reset to Driving (Car View) first
         setTransportMode('driving');
 
+        // Optimistic / Immediate Attempt
         if (userLocation && selectedPlace) {
             const r = await api.getRoute(
                 { lat: userLocation.latitude, lon: userLocation.longitude },
                 { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) },
-                'driving' // Explicitly use driving
+                'driving'
+            );
+
+            if (r) {
+                // Success: Show Route immediately (Old Behavior)
+                setRoute(r);
+                setNavStep('routing');
+                setNavState('peek');
+            } else {
+                // Failure: Show Setup Screen (New Behavior for "No Route")
+                setRoute(null);
+                setNavStep('setup');
+                setRouteError("No route found."); // Will trigger "NO ROUTE FOUND" in UI
+                setTimeout(() => {
+                    setNavState('expanded');
+                }, 50);
+            }
+        } else {
+            // No location data logic? Fallback to setup.
+            setNavStep('setup');
+            setTimeout(() => {
+                setNavState('expanded');
+            }, 50);
+        }
+    };
+
+    const handleCalculateRoute = async () => {
+        // Perform the actual route fetch
+        setRouteError(null);
+        setNavStep('routing'); // Switch view immediately (loading state?) - technically we should wait, but for now...
+
+        const startCoords = startPlace
+            ? { lat: parseFloat(startPlace.lat), lon: parseFloat(startPlace.lon) }
+            : (userLocation ? { lat: userLocation.latitude, lon: userLocation.longitude } : null);
+
+        const endCoords = selectedPlace
+            ? { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) }
+            : null;
+
+        if (startCoords && endCoords) {
+            const r = await api.getRoute(
+                startCoords,
+                endCoords,
+                transportMode
             );
             if (r) {
                 setRoute(r);
@@ -159,21 +217,30 @@ export default function HomeScreen() {
                 setRoute(null);
                 setRouteError("No route found.");
             }
+        } else {
+            setRouteError("Location not available.");
         }
     };
 
+    // Hijack handleTransportModeChange to just update state if in setup mode, or fetch if in routing
     const handleTransportModeChange = async (mode: 'driving' | 'walking' | 'transit') => {
         setTransportMode(mode);
-        setRouteError(null);
-        setRoute(null); // Clear old route while loading? Or keep it? keeping is better UX but loading indicator needed.
-        // For simplicity, we keep old route until new one arrives, or error.
+        if (navStep === 'setup') return; // Just update state
 
-        if (userLocation && selectedPlace) {
-            const r = await api.getRoute(
-                { lat: userLocation.latitude, lon: userLocation.longitude },
-                { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) },
-                mode
-            );
+        // If routing, re-fetch
+        setRouteError(null);
+        setRoute(null);
+
+        const startCoords = startPlace
+            ? { lat: parseFloat(startPlace.lat), lon: parseFloat(startPlace.lon) }
+            : (userLocation ? { lat: userLocation.latitude, lon: userLocation.longitude } : null);
+
+        const endCoords = selectedPlace
+            ? { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) }
+            : null;
+
+        if (startCoords && endCoords) {
+            const r = await api.getRoute(startCoords, endCoords, mode);
             if (r) {
                 setRoute(r);
             } else {
@@ -186,13 +253,26 @@ export default function HomeScreen() {
     const handleStartNavigation = () => {
         setNavState('hidden');
         setActiveNavigation(true);
-        setIsFollowing(true); // Ensure we start following
+        setIsFollowing(true);
         Speech.speak("Driving mode started.");
     };
 
+    const handleRecalculate = async () => {
+        if (userLocation && selectedPlace) {
+            const r = await api.getRoute(
+                { lat: userLocation.latitude, lon: userLocation.longitude },
+                { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) },
+                transportMode
+            );
+            if (r) {
+                setRoute(r);
+                // ActiveNavigation will detect route change and reset stepIndex automatically
+            }
+        }
+    };
+
     const handleMapPress = () => {
-        if (activeNavigation) return; // Don't allow map clicks during nav unless we want to show controls
-        // Clear all sheets and selection
+        if (activeNavigation) return;
         setResultsState('hidden');
         setNavState('hidden');
         setSelectedPlace(null);
@@ -200,6 +280,8 @@ export default function HomeScreen() {
         setRoute(null);
         setPivotActive(false);
         setOptionsActive(false);
+        setStartPlace(null); // Reset start place on clear
+        setNavStep('setup'); // Reset step
     };
 
     const appBarHidden = searchActive || resultsState !== 'hidden' || navState !== 'hidden' || pivotActive || optionsActive || activeNavigation;
@@ -217,7 +299,6 @@ export default function HomeScreen() {
                 onPinPress={(item) => {
                     if (item) {
                         setSelectedPlace(item);
-                        setSearchResults([]); // Clear other pins so only the selected one remains
                         setPivotActive(true); // Open FULL Pivot Info
                         setResultsState('hidden'); // Ensure results sheet is hidden/peek only if needed
                     }
@@ -245,6 +326,7 @@ export default function HomeScreen() {
                         setSelectedPlace(null);
                         setSearchResults([]);
                     }}
+                    onRecalculate={handleRecalculate}
                 />
             )}
 
@@ -268,9 +350,7 @@ export default function HomeScreen() {
                         onGetDirections={handleGetDirections}
                         onPlaceSelect={(place) => {
                             setSelectedPlace(place);
-                            setSearchResults([]); // Clear list so only selected remains
-                            setPivotActive(true); // Open pivot
-                            setResultsState('hidden'); // Hide sheet since pivot covers it
+                            setSearchResults([]); // Hide other pins
                         }}
                         userLocation={userLocation}
                         useMiles={useMiles}
@@ -285,6 +365,15 @@ export default function HomeScreen() {
                         onModeChange={handleTransportModeChange}
                         error={routeError}
                         useMiles={useMiles}
+                        step={navStep}
+                        destination={selectedPlace}
+                        startLocation={startPlace}
+                        onStartLocationPress={() => {
+                            setSearchTarget('origin');
+                            setNavState('hidden'); // Hide sheet temporarily or keep it? search curtain overlays anyway
+                            setSearchActive(true);
+                        }}
+                        onCalculateRoute={handleCalculateRoute}
                     />
 
                     {pivotActive && (
