@@ -52,7 +52,7 @@ export const api = {
         return R * c;
     },
 
-    // Text Search (Google Places)
+    // Text Search (Google Places) - With Pagination for More Results
     async searchPlaces(query: string, location?: { lat: number; lon: number }, radius: number = 5000): Promise<SearchResult[]> {
         try {
             let url = `${GOOGLE_BASE_URL}/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
@@ -61,39 +61,61 @@ export const api = {
                 url += `&location=${location.lat},${location.lon}&radius=${radius}`;
             }
 
-            const response = await fetch(url);
-            const data = await response.json();
+            let allResults: SearchResult[] = [];
+            let nextPageToken: string | null = null;
+            let pageCount = 0;
+            const maxPages = 3; // Google allows max 3 pages (60 results)
 
-            if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-                console.error('Google Places Error:', data.status, data.error_message);
-                return [];
-            }
+            do {
+                let pageUrl = url;
+                if (nextPageToken) {
+                    pageUrl += `&pagetoken=${nextPageToken}`;
+                }
 
-            let results = (data.results || []).map((item: any) => ({
-                place_id: item.place_id,
-                lat: item.geometry.location.lat.toString(),
-                lon: item.geometry.location.lng.toString(),
-                display_name: item.name,
-                type: item.types?.[0] || 'place',
-                address: item.formatted_address,
-                rating: item.rating,
-                user_ratings_total: item.user_ratings_total,
-                price_level: item.price_level,
-                photos: item.photos,
-                vicinity: item.formatted_address,
-                isOpen: item.opening_hours?.open_now,
-            }));
+                const response = await fetch(pageUrl);
+                const data = await response.json();
+
+                if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+                    console.error('Google Places Error:', data.status, data.error_message);
+                    break;
+                }
+
+                const pageResults = (data.results || []).map((item: any) => ({
+                    place_id: item.place_id,
+                    lat: item.geometry.location.lat.toString(),
+                    lon: item.geometry.location.lng.toString(),
+                    display_name: item.name,
+                    type: item.types?.[0] || 'place',
+                    address: item.formatted_address,
+                    rating: item.rating,
+                    user_ratings_total: item.user_ratings_total,
+                    price_level: item.price_level,
+                    photos: item.photos,
+                    vicinity: item.formatted_address,
+                    isOpen: item.opening_hours?.open_now,
+                }));
+
+                allResults = [...allResults, ...pageResults];
+                nextPageToken = data.next_page_token || null;
+                pageCount++;
+
+                // Google requires a short delay before using next_page_token
+                if (nextPageToken && pageCount < maxPages) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+
+            } while (nextPageToken && pageCount < maxPages);
 
             // Sort by distance if location is available
             if (location) {
-                results.sort((a, b) => {
+                allResults.sort((a, b) => {
                     const distA = this.getDistance(location.lat, location.lon, parseFloat(a.lat), parseFloat(a.lon));
                     const distB = this.getDistance(location.lat, location.lon, parseFloat(b.lat), parseFloat(b.lon));
                     return distA - distB;
                 });
             }
 
-            return results;
+            return allResults;
 
         } catch (error) {
             console.error('Search failed:', error);
