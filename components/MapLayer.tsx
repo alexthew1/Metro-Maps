@@ -436,8 +436,7 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
     // Snapping Logic state
     const [snappedLocation, setSnappedLocation] = useState<{ latitude: number, longitude: number } | null>(null);
 
-    // Route Trimming Logic
-    const [displayCoordinates, setDisplayCoordinates] = React.useState<{ latitude: number, longitude: number }[]>([]);
+    // Route Trimming Logic refs
     const lastClosestIndex = useRef(0);
     const lastRouteId = useRef<string | null>(null);
 
@@ -450,29 +449,20 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
         }
     }, [route]);
 
-    // Route Trimming & Snapping Logic
-    useEffect(() => {
-        // ... existing logic I added ...
+    // Route Trimming & Snapping Logic - Use useMemo for instant updates
+    const { displayCoordinates, computedSnappedLocation } = React.useMemo(() => {
         if (!route) {
-            setDisplayCoordinates([]);
-            setSnappedLocation(null);
-            return;
+            return { displayCoordinates: [], computedSnappedLocation: null };
         }
 
         if (cameraMode !== 'navigation' || !userLocation) {
-            setDisplayCoordinates(route.coordinates);
-            setSnappedLocation(null);
-            return;
+            return { displayCoordinates: route.coordinates, computedSnappedLocation: null };
         }
 
         // Find closest point on route to user (Vertex)
         let minDistance = Infinity;
-        let closestIndex = lastClosestIndex.current;
+        let closestIndex = 0;
 
-        // Optimization: Search window around last index (e.g., +/- 50 points) or forward only?
-        // Full scan is safer for loops/recalc, but forward scan is efficient.
-        // We'll stick to full scan starting from last index for now to ensure we don't jump back.
-        // Actually, scan full array is safer if user does U-Turn.
         for (let i = 0; i < route.coordinates.length; i++) {
             const p = route.coordinates[i];
             const d = (p.latitude - userLocation.latitude) ** 2 + (p.longitude - userLocation.longitude) ** 2;
@@ -482,16 +472,11 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
             }
         }
 
-        // Enforce Monotonic Progress (Optional: Disable if we allow U-turns detection here? No, rely on ActiveNavigation recalculation)
-        // If we found a point "way back", it implies loop or error. 
-        // Logic: If closestIndex is drastically far back, ignore? 
-        // For snapping, we just want the closest point.
         lastClosestIndex.current = closestIndex;
 
         // --- SNAPPING CALCULATION ---
         let snapCandidate = route.coordinates[closestIndex];
-        // Look at segments adjacent to closest vertex: [i-1, i] and [i, i+1]
-        const segments = [];
+        const segments: { latitude: number; longitude: number }[][] = [];
         if (closestIndex > 0) segments.push([route.coordinates[closestIndex - 1], route.coordinates[closestIndex]]);
         if (closestIndex < route.coordinates.length - 1) segments.push([route.coordinates[closestIndex], route.coordinates[closestIndex + 1]]);
 
@@ -506,23 +491,21 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
             }
         });
 
-        // Threshold (approx meters). 1 degree ~ 111km. 10m ~ 0.0001 deg. 
-        // 0.0001^2 = 1e-8.
-        const SNAP_THRESHOLD_SQ = 0.0003 * 0.0003; // ~30 meters
+        // Threshold (~30 meters)
+        const SNAP_THRESHOLD_SQ = 0.0003 * 0.0003;
+        const snapped = bestSnapDist < SNAP_THRESHOLD_SQ ? snapCandidate : null;
 
-        if (bestSnapDist < SNAP_THRESHOLD_SQ) {
-            setSnappedLocation(snapCandidate);
-        } else {
-            setSnappedLocation(null); // Too far, don't snap (Enables connection line)
-        }
-
-        // Trimming (Visual)
-        // We always start the visible route from the snapCandidate (closest point on path)
-        // so the blue line doesn't jump to the user when off-road.
+        // Trimming (Visual) - start from closest point
         const remaining = route.coordinates.slice(closestIndex);
-        setDisplayCoordinates([snapCandidate, ...remaining]);
+        const coords = snapped ? [snapped, ...remaining] : remaining;
 
+        return { displayCoordinates: coords, computedSnappedLocation: snapped };
     }, [route, userLocation, cameraMode]);
+
+    // Update snappedLocation state from memo (for puck rendering)
+    useEffect(() => {
+        setSnappedLocation(computedSnappedLocation);
+    }, [computedSnappedLocation]);
 
     return (
         <View style={styles.container}>
