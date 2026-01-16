@@ -322,20 +322,19 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
 
             // Prioritize Route Bearing if available
             if (route && route.coordinates.length > 1) {
-                // Use last known index from trimming logic (Using the Ref since it's updated in the other effect)
-                // Note: lastClosestIndex might lag slightly behind visual update but is safe for heading
+                // Use last known index from trimming logic
                 let idx = lastClosestIndex.current || 0;
 
-                // Look ahead logic
-                let targetIdx = Math.min(idx + 1, route.coordinates.length - 1);
+                // Look ahead further for smoother camera (3-5 points ahead)
+                let targetIdx = Math.min(idx + 3, route.coordinates.length - 1);
 
                 const p1 = userLocation;
                 const p2 = route.coordinates[targetIdx];
 
-                // If points are very close (< 2 meters), look one further ahead for stability
-                // 2 meters approx 0.00002 deg. Squared ~ 4e-10.
-                if (getDistSq(p1, p2) < 0.0000000004 && targetIdx < route.coordinates.length - 1) {
-                    targetIdx++;
+                // If points are very close, look even further ahead for stability
+                const distSq = getDistSq(p1, p2);
+                if (distSq < 0.0000001 && targetIdx < route.coordinates.length - 3) {
+                    targetIdx = Math.min(idx + 5, route.coordinates.length - 1);
                 }
 
                 targetHeading = getBearing(p1, route.coordinates[targetIdx]);
@@ -343,11 +342,11 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
 
             mapRef.current.animateCamera({
                 center: userLocation,
-                pitch: 60,
+                pitch: 65,          // Steeper tilt for better 3D effect
                 heading: targetHeading,
-                zoom: 18,
-                altitude: 200,
-            }, { duration: 1000 });
+                zoom: 19,           // Higher zoom for street-level detail
+                altitude: 150,      // Lower altitude for closer view
+            }, { duration: 500 }); // Faster, smoother updates
             return;
         }
     }, [userLocation, cameraMode, isFollowing, route]);
