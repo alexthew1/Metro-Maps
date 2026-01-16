@@ -1,7 +1,5 @@
 # MetroMaps 8.1
 
-> **"Content before Chrome"**
-
 MetroMaps 8.1 is a modern reimagining of the classic Windows Phone 8.1 maps experience, built with **React Native** and **Expo**. It combines the nostalgic, typography-led "Metro" design language with powerful, real-time navigation capabilities powered by Google and OSRM.
 
 ## Features
