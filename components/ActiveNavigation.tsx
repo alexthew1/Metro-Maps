@@ -5,6 +5,7 @@ import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
 import { RouteResult } from '../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Speech from 'expo-speech';
 
 interface ActiveNavigationProps {
     route: RouteResult | null;
@@ -31,6 +32,12 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     // Total Duration (static for now, could decrease)
     const durationMin = Math.round(route.duration / 60);
 
+
+
+    // Speech State
+    const lastSpokenStep = React.useRef(-1);
+    const spokenThresholds = React.useRef<Set<string>>(new Set());
+
     React.useEffect(() => {
         if (!userLocation || !nextManeuver) return;
 
@@ -41,8 +48,50 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         );
         setDistanceToNext(dist);
 
-        // Advanced to next step if close (e.g., 30 meters)
-        if (dist < 30 && stepIndex < route.maneuvers.length - 1) {
+        // --- Voice Guidance Logic ---
+        if (stepIndex !== lastSpokenStep.current) {
+            lastSpokenStep.current = stepIndex;
+            spokenThresholds.current.clear();
+
+            // Speak immediate instruction if starting fresh/short segment
+            const initialDist = useMiles ? dist * 3.28084 : dist;
+            if (initialDist > 300) { // Only speak start if substantial distance
+                // basic "Head towards..." could be here, but we skip for now to avoid spam
+            }
+        }
+
+        // define thresholds
+        const thresholds = useMiles
+            ? [{ val: 5280, label: '1 mile' }, { val: 2640, label: 'half a mile' }, { val: 1000, label: '1000 feet' }, { val: 500, label: '500 feet' }, { val: 100, label: '100 feet' }]
+            : [{ val: 2000, label: '2 kilometers' }, { val: 1000, label: '1 kilometer' }, { val: 500, label: '500 meters' }, { val: 200, label: '200 meters' }, { val: 50, label: '50 meters' }];
+
+        const currentDistUnit = useMiles ? dist * 3.28084 : dist; // ft or meters
+
+        for (const t of thresholds) {
+            // Trigger if we just crossed UNDER the threshold (and haven't spoken it yet)
+            // We use a buffer of 10% to ensure we don't miss it if GPS jumps slightly
+            if (currentDistUnit <= t.val && currentDistUnit > (t.val * 0.5) && !spokenThresholds.current.has(t.label)) {
+                spokenThresholds.current.add(t.label);
+
+                // Construct Speech
+                const maneuverName = nextManeuver.name || nextManeuver.maneuver?.type || 'turn';
+                const speechText = `In ${t.label}, ${maneuverName}`;
+                // console.log("Speaking:", speechText);
+                Speech.speak(speechText, { language: 'en-US', rate: 1.0 });
+                break; // Only speak one threshold at a time
+            }
+        }
+
+        // Final "Now" instruction (< 30m / 100ft)
+        if (currentDistUnit < (useMiles ? 100 : 30) && !spokenThresholds.current.has('NOW')) {
+            spokenThresholds.current.add('NOW');
+            const maneuverName = nextManeuver.name || 'turn';
+            Speech.speak(maneuverName, { language: 'en-US' });
+        }
+        // ----------------------------
+
+        // Advanced to next step if close (e.g., 20 meters)
+        if (dist < 20 && stepIndex < route.maneuvers.length - 1) {
             setStepIndex(prev => prev + 1);
         }
 
@@ -60,7 +109,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         const relativeBearing = absoluteBearing - mapHeading;
         setArrowRotation(relativeBearing);
 
-    }, [userLocation, stepIndex, nextManeuver, mapHeading]);
+    }, [userLocation, stepIndex, nextManeuver, mapHeading, useMiles]);
 
     // Format distance
     let distDisplay = '';
@@ -89,13 +138,13 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                         />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={[GlobalStyles.metroMD, { color: 'white', fontWeight: 'bold', fontSize: 24, letterSpacing: 0.5 }]}>
+                        <Text style={[GlobalStyles.metroMD, { color: 'white', fontFamily: 'OpenSans_700Bold', fontSize: 24, letterSpacing: 0.5 }]}>
                             {nextManeuver?.maneuver?.type?.toUpperCase() || 'ARRIVE'}
                         </Text>
                         <Text style={[GlobalStyles.metroXL, { color: 'white', fontSize: 32, marginTop: -4 }]} numberOfLines={2}>
                             {nextManeuver?.name || 'Destination'}
                         </Text>
-                        <Text style={[GlobalStyles.metroSM, { color: Colors.accent, marginTop: 4, fontWeight: 'bold' }]}>
+                        <Text style={[GlobalStyles.metroSM, { color: Colors.accent, marginTop: 4, fontFamily: 'OpenSans_700Bold' }]}>
                             {distDisplay}
                         </Text>
                     </View>
@@ -124,7 +173,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
             {/* Bottom Bar: Stats & Stop - Extended to bottom edge */}
             <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 20 }]}>
                 <View>
-                    <Text style={[GlobalStyles.metroLG, { color: 'white', fontSize: 48, lineHeight: 54 }]}>{durationMin}<Text style={{ fontSize: 20, color: '#999' }}> min</Text></Text>
+                    <Text style={[GlobalStyles.metroLG, { color: 'white', fontSize: 48, lineHeight: 54 }]}>{durationMin}<Text style={{ fontSize: 20, color: '#999', fontFamily: 'OpenSans_400Regular' }}> min</Text></Text>
                     <Text style={[GlobalStyles.metroSM, { color: '#999', fontSize: 16 }]}>
                         {useMiles
                             ? `${(route.distance / 1609.34).toFixed(1)} mi`
@@ -135,7 +184,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
 
                 {/* Rectangular Stop Button (Text Only) */}
                 <TouchableOpacity onPress={onStopConfig} style={styles.stopButton}>
-                    <Text style={[GlobalStyles.metroSM, { color: 'white', fontWeight: 'bold', fontSize: 16 }]}>END</Text>
+                    <Text style={[GlobalStyles.metroSM, { color: 'white', fontFamily: 'OpenSans_700Bold', fontSize: 16 }]}>END</Text>
                 </TouchableOpacity>
             </View>
         </View>

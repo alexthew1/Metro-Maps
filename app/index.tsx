@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 
 import { ActiveNavigation } from '../components/ActiveNavigation';
+import { FavoritesService } from '../services/favorites';
 
 export default function HomeScreen() {
     // State
@@ -40,6 +41,27 @@ export default function HomeScreen() {
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [route, setRoute] = useState<RouteResult | null>(null);
     const [routeError, setRouteError] = useState<string | null>(null);
+    const [favorites, setFavorites] = useState<SearchResult[]>([]);
+
+    // Load Favorites
+    useEffect(() => {
+        loadFavorites();
+    }, []);
+
+    const loadFavorites = async () => {
+        const favs = await FavoritesService.getFavorites();
+        setFavorites(favs);
+    };
+
+    const handleToggleFavorite = async (place: SearchResult) => {
+        const isFav = await FavoritesService.isFavorite(place.place_id);
+        if (isFav) {
+            await FavoritesService.removeFavorite(place.place_id);
+        } else {
+            await FavoritesService.addFavorite(place);
+        }
+        await loadFavorites(); // Reload state
+    };
 
     // --- Logic ---
 
@@ -106,6 +128,7 @@ export default function HomeScreen() {
         setSearchResults([]); // Clear list on specific select
         setSearchActive(false);
         setResultsState('peek');
+        setPivotActive(true); // Also open pivot immediately for consistency
     };
 
     const handleCategoryResults = (results: SearchResult[]) => {
@@ -194,6 +217,7 @@ export default function HomeScreen() {
                 onPinPress={(item) => {
                     if (item) {
                         setSelectedPlace(item);
+                        setSearchResults([]); // Clear other pins so only the selected one remains
                         setPivotActive(true); // Open FULL Pivot Info
                         setResultsState('hidden'); // Ensure results sheet is hidden/peek only if needed
                     }
@@ -233,6 +257,7 @@ export default function HomeScreen() {
                         onCategorySearch={handleCategoryResults}
                         region={mapRegion}
                         userLocation={userLocation}
+                        favorites={favorites}
                     />
 
                     <ResultsSheet
@@ -243,6 +268,9 @@ export default function HomeScreen() {
                         onGetDirections={handleGetDirections}
                         onPlaceSelect={(place) => {
                             setSelectedPlace(place);
+                            setSearchResults([]); // Clear list so only selected remains
+                            setPivotActive(true); // Open pivot
+                            setResultsState('hidden'); // Hide sheet since pivot covers it
                         }}
                         userLocation={userLocation}
                         useMiles={useMiles}
@@ -267,6 +295,8 @@ export default function HomeScreen() {
                                 setSelectedPlace(null); // Remove pin when closing
                             }}
                             onGetDirections={handleGetDirections}
+                            isFavorite={selectedPlace ? favorites.some(f => f.place_id === selectedPlace.place_id) : false}
+                            onToggleFavorite={() => selectedPlace && handleToggleFavorite(selectedPlace)}
                         />
                     )}
 
