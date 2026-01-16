@@ -41,6 +41,7 @@
   },
   "private": true,
   "devDependencies": {
-    "@types/react": "~19.1.10"
+    "@types/react": "~19.1.10",
+    "dotenv": "^17.2.3"
   }
 }

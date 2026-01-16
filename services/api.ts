@@ -1,8 +1,10 @@
 import { decode } from '@mapbox/polyline';
 import Constants from 'expo-constants';
 
-// Use the key provided by the user or fallback to config
-const GOOGLE_API_KEY = Constants.expoConfig?.android?.config?.googleMaps?.apiKey || 'AIzaSyCt3bCNc6I74H9UCdXLRcVWCFErAzjBFwY';
+// Read API key from environment (via app.config.js -> expo-constants)
+const GOOGLE_API_KEY = Constants.expoConfig?.extra?.googleMapsApiKey ||
+    Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
+    '';
 const GOOGLE_BASE_URL = 'https://maps.googleapis.com/maps/api/place';
 
 export interface SearchResult {
