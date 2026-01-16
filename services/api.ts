@@ -99,9 +99,9 @@ export const api = {
                 nextPageToken = data.next_page_token || null;
                 pageCount++;
 
-                // Google requires a short delay before using next_page_token
+                // Google requires ~2 second delay before next_page_token is valid
                 if (nextPageToken && pageCount < maxPages) {
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                 }
 
             } while (nextPageToken && pageCount < maxPages);
