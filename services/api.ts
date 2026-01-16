@@ -59,7 +59,8 @@ export const api = {
     },
 
     // Text Search (Google Places) - With Pagination for More Results
-    async searchPlaces(query: string, location?: { lat: number; lon: number }, radius: number = 5000): Promise<SearchResult[]> {
+    // Default radius: 50 miles = 80,467 meters
+    async searchPlaces(query: string, location?: { lat: number; lon: number }, radius: number = 80467): Promise<SearchResult[]> {
         try {
             let url = `${GOOGLE_BASE_URL}/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}`;
             if (location) {
@@ -112,8 +113,13 @@ export const api = {
 
             } while (nextPageToken && pageCount < maxPages);
 
-            // Sort by distance if location is available
+            // Filter and sort by distance if location is available
             if (location) {
+                const radiusKm = radius / 1000;
+                allResults = allResults.filter(r => {
+                    const dist = this.getDistance(location.lat, location.lon, parseFloat(r.lat), parseFloat(r.lon));
+                    return dist <= radiusKm;
+                });
                 allResults.sort((a, b) => {
                     const distA = this.getDistance(location.lat, location.lon, parseFloat(a.lat), parseFloat(a.lon));
                     const distB = this.getDistance(location.lat, location.lon, parseFloat(b.lat), parseFloat(b.lon));
@@ -130,7 +136,8 @@ export const api = {
     },
 
     // Category Search (Mapped to Text Search for better relevance)
-    async searchByCategory(category: string, lat: number, lon: number, radiusKm: number = 25): Promise<SearchResult[]> {
+    // Default radius: 50 miles = ~80 km
+    async searchByCategory(category: string, lat: number, lon: number, radiusKm: number = 80): Promise<SearchResult[]> {
         // "Italian restaurants near me" logic is handled well by Text Search with location bias
         // We append the category to "near me" or just use the category + location bias
         const query = category;
