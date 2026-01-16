@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { BottomSheet } from './BottomSheet';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
-import { RouteResult } from '../services/api';
+import { RouteResult, SearchResult } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,16 +16,26 @@ interface NavigationSheetProps {
     onModeChange?: (mode: 'driving' | 'walking' | 'transit') => void;
     error?: string | null;
     useMiles?: boolean;
+    // New Props for Setup Mode
+    step?: 'setup' | 'routing';
+    destination?: SearchResult | null;
+    startLocation?: SearchResult | null;
+    onStartLocationPress?: () => void;
+    onCalculateRoute?: () => void;
 }
 
-export function NavigationSheet({ route, state, onStateChange, onStartNavigation, transportMode = 'driving', onModeChange, error, useMiles = true }: NavigationSheetProps) {
+export function NavigationSheet({ route, state, onStateChange, onStartNavigation, transportMode = 'driving', onModeChange, error, useMiles = true, step = 'routing', destination, startLocation, onStartLocationPress, onCalculateRoute }: NavigationSheetProps) {
     const insets = useSafeAreaInsets();
 
-    // If we have neither route nor error, we probably shouldn't be showing (or we are loading, but loading state not implemented yet)
-    if (!route && !error) return null;
+    // If hidden, return null
+    if (state === 'hidden') return null;
+
+    // In routing mode, we need route or error. In setup mode, we just need visibility.
+    if (step === 'routing' && !route && !error) return null;
 
     const durationMin = route ? Math.round(route.duration / 60) : 0;
 
+    // ... distance calculation ...
     let distDisplay = '0.0';
     if (route) {
         if (useMiles) {
@@ -37,7 +47,75 @@ export function NavigationSheet({ route, state, onStateChange, onStartNavigation
         }
     }
 
-    const Header = (
+    // --- SETUP HEADER (No Route Yet) ---
+    if (step === 'setup') {
+        const SetupHeader = (
+            <View style={styles.header}>
+                <Text style={[GlobalStyles.metroSM, { fontSize: 14, letterSpacing: 1.5, marginBottom: 0, textTransform: 'uppercase' }]}>
+                    {error ? 'NO ROUTE FOUND' : 'GET DIRECTIONS'}
+                </Text>
+                <Text style={[GlobalStyles.metroXL, { fontSize: 60, marginBottom: 30, lineHeight: 60, marginLeft: -2 }]}>directions</Text>
+
+                {/* FROM */}
+                <TouchableOpacity style={{ marginBottom: 25 }} onPress={onStartLocationPress}>
+                    <Text style={[GlobalStyles.metroSM, { fontSize: 18, color: '#999', marginBottom: 2 }]}>from</Text>
+                    <Text style={[GlobalStyles.metroMD, { fontSize: 28, color: Colors.accent, fontFamily: 'OpenSans_400Regular' }]}>
+                        {startLocation ? startLocation.display_name.split(',')[0].toLowerCase() : 'your location'}
+                    </Text>
+                </TouchableOpacity>
+
+                {/* TO */}
+                <View style={{ marginBottom: 40 }}>
+                    <Text style={[GlobalStyles.metroSM, { fontSize: 18, color: '#999', marginBottom: 2 }]}>to</Text>
+                    <Text style={[GlobalStyles.metroMD, { fontSize: 28, color: Colors.accent, fontFamily: 'OpenSans_400Regular' }]}>
+                        {destination?.display_name.split(',')[0].toLowerCase() || 'select destination...'}
+                    </Text>
+                </View>
+                {/* Transport & Action Row */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    {/* Transport Toggles - Subtle */}
+                    <View style={{ flexDirection: 'row', gap: 30, opacity: 0.8 }}>
+                        <TouchableOpacity onPress={() => onModeChange?.('driving')}>
+                            <Ionicons name="car" size={32} color={transportMode === 'driving' ? Colors.accent : '#666'} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => onModeChange?.('transit')}>
+                            <Ionicons name="bus" size={32} color={transportMode === 'transit' ? Colors.accent : '#666'} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => onModeChange?.('walking')}>
+                            <Ionicons name="walk" size={32} color={transportMode === 'walking' ? Colors.accent : '#666'} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Confirm Button - Circular Right */}
+                    <TouchableOpacity
+                        onPress={onCalculateRoute}
+                        style={{
+                            width: 70,
+                            height: 70,
+                            borderRadius: 35,
+                            backgroundColor: 'black',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 3,
+                            borderColor: 'white',
+                        }}
+                    >
+                        <Ionicons name="arrow-forward" size={35} color="white" />
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+
+        return (
+            <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={SetupHeader}>
+                {/* Empty Content for now */}
+                <View style={[styles.content, { paddingBottom: insets.bottom + 20, minHeight: 100 }]} />
+            </BottomSheet>
+        );
+    }
+
+    // --- ROUTING HEADER (With Route) ---
+    const RoutingHeader = (
         <View style={styles.header}>
             {/* Top Row: Title + Start Button */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
@@ -81,7 +159,7 @@ export function NavigationSheet({ route, state, onStateChange, onStartNavigation
     );
 
     return (
-        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header}>
+        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={RoutingHeader}>
             <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
                 {error ? (
                     <View style={{ paddingVertical: 20 }}>
