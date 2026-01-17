@@ -7,6 +7,8 @@ import { GlobalStyles } from '../constants/Styles';
 import Svg, { Path } from 'react-native-svg';
 import { api, SearchResult } from '../services/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RecentsService } from '../services/recents';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface SearchCurtainProps {
     active: boolean;
@@ -15,7 +17,6 @@ interface SearchCurtainProps {
     onCategorySearch?: (results: SearchResult[]) => void;
     region?: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
     userLocation?: { latitude: number; longitude: number } | null;
-    favorites?: SearchResult[];
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -25,14 +26,24 @@ const CATEGORIES = [
     'Gas Station', 'Hotel', 'Parking', 'Grocery', 'Pharmacy', 'Bank', 'Bar', 'ATM'
 ];
 
-export function SearchCurtain({ active, onClose, onResultSelected, region, onCategorySearch, userLocation, favorites }: SearchCurtainProps) {
+export function SearchCurtain({ active, onClose, onResultSelected, region, onCategorySearch, userLocation }: SearchCurtainProps) {
     const insets = useSafeAreaInsets();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
+    const [recents, setRecents] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
 
-    // Known categories for smart parsing (include common variations)
-    const knownCategories = ['restaurant', 'restaurants', 'burger', 'burgers', 'pizza', 'chinese', 'mexican', 'japanese', 'indian', 'italian', 'steak', 'gas', 'gas station', 'hotel', 'hotels', 'parking', 'bank', 'banks', 'pharmacy', 'grocery', 'bar', 'bars', 'atm'];
+    // Initial Load of Recents
+    useEffect(() => {
+        if (active) {
+            loadRecents();
+        }
+    }, [active]);
+
+    const loadRecents = async () => {
+        const data = await RecentsService.getRecents();
+        setRecents(data);
+    };
 
     // Debouce Search
     useEffect(() => {
@@ -158,6 +169,9 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
         };
     }, [active]);
 
+    const displayData = results.length > 0 ? results : recents;
+    const isShowingRecents = results.length === 0 && recents.length > 0;
+
     return (
         <Animated.View
             style={[styles.container, animatedStyle, { paddingTop: insets.top + 20 }]}
@@ -197,26 +211,38 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
 
             <View style={styles.resultsContainer}>
                 <FlatList
-                    data={results.length > 0 ? results : (favorites || [])}
-                    keyExtractor={(item) => item.place_id.toString()}
-                    contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+                    data={query.length === 0 ? recents : [...recents.filter(r => r.display_name.toLowerCase().includes(query.toLowerCase())), ...results]}
+                    keyExtractor={(item, index) => item.place_id.toString() + index}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
                     ListHeaderComponent={() => (
                         <>
-                            {results.length === 0 && favorites && favorites.length > 0 && (
-                                <Text style={[GlobalStyles.metroMD, { marginBottom: 10, opacity: 0.6 }]}>favorites</Text>
+                            {results.length === 0 && query.length === 0 && recents.length > 0 && (
+                                <Text style={[GlobalStyles.metroMD, { marginBottom: 10, opacity: 0.6 }]}>recent</Text>
                             )}
                         </>
                     )}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.suggestion} onPress={() => onResultSelected(item)}>
-                            <View>
-                                <Text style={[styles.suggestionText, { color: Colors.accent }]}>{item.display_name}</Text>
-                                {item.address ? (
-                                    <Text style={[styles.suggestionText, { color: '#bbb', fontSize: 16 }]}>{item.address}</Text>
-                                ) : null}
-                            </View>
-                        </TouchableOpacity>
-                    )}
+                    renderItem={({ item }) => {
+                        const isRecent = recents.some(r => r.place_id === item.place_id);
+                        // If we are filtering, we show history icon for recents
+                        // If we are showing just list (query empty), we show history icon for all (as they are all recent)
+                        const showHistoryIcon = isRecent;
+
+                        return (
+                            <TouchableOpacity style={styles.suggestion} onPress={() => onResultSelected(item)}>
+                                {showHistoryIcon && (
+                                    <View style={{ marginRight: 15 }}>
+                                        <MaterialCommunityIcons name="history" size={24} color="#666" />
+                                    </View>
+                                )}
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.suggestionText, { color: Colors.accent }]}>{item.display_name}</Text>
+                                    {item.address ? (
+                                        <Text style={[styles.suggestionText, { color: '#bbb', fontSize: 16 }]}>{item.address}</Text>
+                                    ) : null}
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    }}
                 />
             </View>
         </Animated.View>
@@ -258,9 +284,12 @@ const styles = StyleSheet.create({
         paddingVertical: 15,
         borderBottomWidth: 1,
         borderBottomColor: 'rgba(255,255,255,0.2)',
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     suggestionText: {
         fontSize: 22,
+        fontFamily: 'OpenSans_400Regular',
     }
 
 });

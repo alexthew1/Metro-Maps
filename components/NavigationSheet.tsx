@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { BottomSheet } from './BottomSheet';
+import { MetroButton } from './MetroButton';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
 import { RouteResult, SearchResult } from '../services/api';
@@ -107,60 +108,49 @@ export function NavigationSheet({ route, state, onStateChange, onStartNavigation
         );
 
         return (
-            <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={SetupHeader}>
+            <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={SetupHeader} peekHeight={180}>
                 {/* Empty Content for now */}
                 <View style={[styles.content, { paddingBottom: insets.bottom + 20, minHeight: 100 }]} />
             </BottomSheet>
         );
     }
 
-    // --- ROUTING HEADER (With Route) ---
+    // --- ROUTING HEADER (With Route) - Nokia Maps Style ---
     const RoutingHeader = (
         <View style={styles.header}>
-            {/* Top Row: Title + Start Button */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                <Text style={[GlobalStyles.metroXL, { fontSize: 40 }]}>directions</Text>
+            {/* Top Stats Bar: Duration/Distance LEFT, Mode Icons RIGHT */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
+                {/* Left: Stats */}
+                <View>
+                    {error ? (
+                        <Text style={[GlobalStyles.metroMD, { fontSize: 24, color: '#ff4444' }]}>NO ROUTE</Text>
+                    ) : (
+                        <>
+                            <Text style={{ fontFamily: 'OpenSans_400Regular', fontSize: 26, color: 'white', lineHeight: 30 }}>{durationMin} MIN</Text>
+                            <Text style={{ fontFamily: 'OpenSans_400Regular', fontSize: 14, color: '#999', marginTop: 0 }}>{distDisplay}</Text>
+                        </>
+                    )}
+                </View>
 
-                {/* Start Button - Disabled if no route */}
-                <TouchableOpacity
-                    onPress={() => route && onStartNavigation && onStartNavigation()}
-                    style={[styles.startButton, !route && { borderColor: '#555' }]}
-                    disabled={!route}
-                >
-                    <Text style={[GlobalStyles.metroSM, { fontFamily: 'OpenSans_700Bold', color: route ? 'white' : '#555', fontSize: 16 }]}>start</Text>
-                </TouchableOpacity>
+                {/* Right: Mode Icons */}
+                <View style={{ flexDirection: 'row', gap: 20, alignItems: 'center', marginTop: 2 }}>
+                    <TouchableOpacity onPress={() => onModeChange?.('walking')}>
+                        <Ionicons name="walk" size={26} color={transportMode === 'walking' ? 'white' : '#666'} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => onModeChange?.('driving')}>
+                        <Ionicons name="car" size={26} color={transportMode === 'driving' ? 'white' : '#666'} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
-            {/* Transport Mode Toggles */}
-            <View style={{ flexDirection: 'row', gap: 25, marginBottom: 20 }}>
-                <TouchableOpacity onPress={() => onModeChange?.('driving')}>
-                    <Ionicons name="car" size={32} color={transportMode === 'driving' ? Colors.accent : '#666'} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onModeChange?.('transit')}>
-                    <Ionicons name="bus" size={32} color={transportMode === 'transit' ? Colors.accent : '#666'} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onModeChange?.('walking')}>
-                    <Ionicons name="walk" size={32} color={transportMode === 'walking' ? Colors.accent : '#666'} />
-                </TouchableOpacity>
-            </View>
-
-            {/* Bottom Row: Stats OR Error Text (Visible in Peek) */}
-            <View style={{ marginTop: 0 }}>
-                {error ? (
-                    <Text style={[GlobalStyles.metroMD, { fontSize: 24, color: '#ff4444' }]}>{error}</Text>
-                ) : (
-                    <>
-                        <Text style={[GlobalStyles.metroMD, { fontSize: 32, fontFamily: 'OpenSans_700Bold', lineHeight: 36 }]}>{durationMin} min</Text>
-                        <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { fontSize: 16, marginTop: -2 }]}>{distDisplay}</Text>
-                    </>
-                )}
-            </View>
+            {/* Large Title: "directions" */}
+            <Text style={{ fontFamily: 'OpenSans_300Light', fontSize: 50, color: 'white', lineHeight: 55, marginTop: 5, letterSpacing: -1 }}>directions</Text>
         </View>
     );
 
     return (
-        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={RoutingHeader}>
-            <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
+        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={RoutingHeader} peekHeight={170}>
+            <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
                 {error ? (
                     <View style={{ paddingVertical: 20 }}>
                         <Text style={[GlobalStyles.metroMD, { color: '#888' }]}>
@@ -168,15 +158,20 @@ export function NavigationSheet({ route, state, onStateChange, onStartNavigation
                         </Text>
                     </View>
                 ) : (
-                    route?.maneuvers.map((step, index) => (
-                        <View key={index} style={styles.maneuver}>
-                            <Text style={styles.arrow}>{getArrow(step.maneuver?.modifier)}</Text>
-                            <View style={{ flex: 1 }}>
-                                <Text style={GlobalStyles.metroMD}>{step.maneuver?.type === 'transit' ? 'Take Public Transit' : (step.maneuver?.type || 'Go straight')}</Text>
-                                <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText]}>{step.name || 'on road'}</Text>
+                    <>
+                        {route?.maneuvers.map((step, index) => (
+                            <View key={index} style={styles.maneuver}>
+                                <Text style={styles.arrow}>{getArrow(step.maneuver?.modifier)}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={GlobalStyles.metroMD}>{step.maneuver?.type === 'transit' ? 'Take Public Transit' : (step.maneuver?.type || 'Go straight')}</Text>
+                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText]}>{step.name || 'on road'}</Text>
+                                </View>
                             </View>
-                        </View>
-                    ))
+                        ))}
+
+                        {/* Start Navigation Button */}
+                        <MetroButton title="start navigation" variant="outlined" onPress={() => route && onStartNavigation && onStartNavigation()} />
+                    </>
                 )}
             </ScrollView>
         </BottomSheet>
@@ -221,5 +216,6 @@ const styles = StyleSheet.create({
         fontSize: 40,
         width: 50,
         lineHeight: 40,
+        fontFamily: 'OpenSans_400Regular',
     }
 });

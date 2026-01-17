@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { View, Platform } from 'react-native';
+import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import { View, Platform, StatusBar } from 'react-native';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
 import { useEffect } from 'react';
@@ -32,6 +32,9 @@ export default function RootLayout() {
         if (Platform.OS === 'android') {
             NavigationBar.setBackgroundColorAsync("black");
             NavigationBar.setButtonStyleAsync("light");
+            // Set status bar background color natively
+            StatusBar.setBackgroundColor('black');
+            StatusBar.setBarStyle('light-content');
         }
     }, []);
 
@@ -49,8 +52,7 @@ export default function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1 }}>
             <ErrorBoundary>
                 <View style={{ flex: 1, backgroundColor: Colors.background }}>
-                    {/* Hide Status Bar -> Fullscreen Experience */}
-                    <StatusBar hidden={true} style="light" />
+                    <ExpoStatusBar style="light" />
                     <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
                         <Stack.Screen name="index" />
                     </Stack>

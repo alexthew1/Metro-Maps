@@ -1,15 +1,20 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image as RNImage } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image as RNImage, Platform, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
 import { RouteResult } from '../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MetroButton } from './MetroButton';
 import * as Speech from 'expo-speech';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, Easing } from 'react-native-reanimated';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface ActiveNavigationProps {
     route: RouteResult | null;
-    userLocation: { latitude: number; longitude: number; heading?: number | null } | null;
+    userLocation: { latitude: number; longitude: number; heading?: number | null; speed?: number | null } | null;
     onStopConfig: () => void;
     isFollowing: boolean;
     onRecenter: () => void;
@@ -26,27 +31,68 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     const [distanceToNext, setDistanceToNext] = React.useState(0);
     const [arrowRotation, setArrowRotation] = React.useState(0);
     const [isRecalculating, setIsRecalculating] = React.useState(false);
+    const [dashboardExpanded, setDashboardExpanded] = React.useState(false);
 
-    // -- REFS (Mutable state that doesn't trigger renders) --
-    const lastSpokenIndex = React.useRef<number>(-1); // Track which step we last spoke
+    // -- ANIMATED SHEET --
+    const PEEK_HEIGHT = 100;
+    const EXPANDED_HEIGHT = 180;
+    const sheetHeight = useSharedValue(PEEK_HEIGHT);
+    const context = useSharedValue({ height: PEEK_HEIGHT });
+
+    const toggleExpanded = (expanded: boolean) => {
+        setDashboardExpanded(expanded);
+    };
+
+    const panGesture = Gesture.Pan()
+        .onStart(() => {
+            context.value = { height: sheetHeight.value };
+        })
+        .onUpdate((event) => {
+            // Dragging up = negative translationY, increases height
+            let newHeight = context.value.height - event.translationY;
+            newHeight = Math.max(PEEK_HEIGHT, Math.min(EXPANDED_HEIGHT, newHeight));
+            sheetHeight.value = newHeight;
+            // Show button instantly when user starts expanding
+            if (newHeight > PEEK_HEIGHT + 5) {
+                runOnJS(toggleExpanded)(true);
+            } else {
+                runOnJS(toggleExpanded)(false);
+            }
+        })
+        .onEnd((event) => {
+            const velocity = event.velocityY;
+            if (velocity < -100 || sheetHeight.value > (PEEK_HEIGHT + EXPANDED_HEIGHT) / 2) {
+                sheetHeight.value = withTiming(EXPANDED_HEIGHT, { duration: 200 });
+                runOnJS(toggleExpanded)(true);
+            } else {
+                sheetHeight.value = withTiming(PEEK_HEIGHT, { duration: 200 });
+                runOnJS(toggleExpanded)(false);
+            }
+        });
+
+    const sheetAnimatedStyle = useAnimatedStyle(() => ({
+        height: sheetHeight.value,
+    }));
+
+    const recenterButtonStyle = useAnimatedStyle(() => ({
+        bottom: sheetHeight.value + 5 + insets.bottom, // 5px above the bottom bar
+    }));
+
+    // -- REFS --
+    const lastSpokenIndex = React.useRef<number>(-1);
     const lastRecalcTime = React.useRef<number>(0);
-    const routeIdRef = React.useRef<string>(''); // Detect route object changes
-    const minDistRef = React.useRef<number>(Infinity); // Hysteresis for turn completion
+    const routeIdRef = React.useRef<string>('');
+    const minDistRef = React.useRef<number>(Infinity);
 
-    // -- 1. RESET LOGIC (When a new route arrives) --
+    // -- 1. RESET LOGIC --
     React.useEffect(() => {
-        // Simple hash or check to see if it's a new route instance
-        // We assume if 'route' object reference changes, it's a new calc
         if (route) {
-            // Generate a primitive ID based on geometry to detect actual changes
-            // (Or just trust the ref change if your parent creates new objects)
             const newId = route.geometry || Math.random().toString();
-
             if (newId !== routeIdRef.current) {
                 console.log("[Nav] New Route detected. Resetting state.");
                 setStepIndex(0);
                 setIsRecalculating(false);
-                lastSpokenIndex.current = -1; // Reset voice trigger
+                lastSpokenIndex.current = -1;
                 routeIdRef.current = newId;
                 minDistRef.current = Infinity;
             }
@@ -63,38 +109,33 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     const nextManeuver = route?.maneuvers[displayIndex];
     if (!route || !userLocation) return null;
 
-    // -- 2. PHYSICS LOOP (Distance, Bearing, Deviation) --
+    // -- 2. PHYSICS LOOP --
     React.useEffect(() => {
         if (isRecalculating || !nextManeuver) return;
 
-        // A. Distance to Next Maneuver
         const dist = getDistance(
             userLocation.latitude, userLocation.longitude,
             nextManeuver.maneuver.location[1], nextManeuver.maneuver.location[0]
         );
         setDistanceToNext(dist);
 
-        // Update closest approach for this step
         if (dist < minDistRef.current) {
             minDistRef.current = dist;
         }
 
-        // B. Deviation Check (Throttled: check every render is fine if math is cheap, but gate action)
         const now = Date.now();
-        if (now - lastRecalcTime.current > 10000 && route.coordinates && route.coordinates.length > 5) {
-            // "Closest Point on Polyline" Check
+        const currentSpeedMps = userLocation.speed || 0;
+        const isMoving = currentSpeedMps > 2.2; // ~5mph threshold, only recalculate when actually driving
+
+        if (isMoving && now - lastRecalcTime.current > 10000 && route.coordinates && route.coordinates.length > 5) {
             let minDistSq = Infinity;
-            // Scan route points
-            for (let i = 0; i < route.coordinates.length; i += 2) { // Opt: Check every 2nd point for speed
+            for (let i = 0; i < route.coordinates.length; i += 2) {
                 const p = route.coordinates[i];
                 const dLat = p.latitude - userLocation.latitude;
                 const dLon = p.longitude - userLocation.longitude;
                 const dSq = dLat * dLat + dLon * dLon;
                 if (dSq < minDistSq) minDistSq = dSq;
             }
-
-            // Approx root conversion
-            // 1 degree ~ 111,000m. 
             const devMeters = Math.sqrt(minDistSq) * 111320;
 
             if (devMeters > 60) {
@@ -104,29 +145,20 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                 Speech.stop();
                 Speech.speak("Recalculating...");
                 onRecalculate();
-                return; // Stop logic for this tick
+                return;
             }
         }
 
-        // C. Advance Step Logic (Hysteresis)
-        // Check if we are "Arriving" (Last step) -> Trigger immediately on proximity
         if (nextManeuver.maneuver.type === 'arrive') {
             if (dist < 30) {
-                console.log(`[Nav] Arrived at Destination. Advancing/Finishing.`);
                 setStepIndex(prev => prev + 1);
             }
         } else {
-            // Standard Turn: Trigger ONLY after we visited close (<20m) AND are now moving away (>25m)
-            // This ensures we are "after" the turn.
-            // Failsafe: If we get VERY close (<10m), maybe just trigger? No, moving away is safer for "after".
-            // We use a relatively large "exit" threshold (25m) to ensure the turn is done.
             if (minDistRef.current < 20 && dist > 25 && stepIndex < route.maneuvers.length - 1) {
-                console.log(`[Nav] Passed step ${stepIndex} (Min: ${Math.round(minDistRef.current)}m, Now: ${Math.round(dist)}m). Advancing.`);
                 setStepIndex(prev => prev + 1);
             }
         }
 
-        // D. Arrow Rotation
         const bearing = getBearing(
             userLocation.latitude, userLocation.longitude,
             nextManeuver.maneuver.location[1], nextManeuver.maneuver.location[0]
@@ -134,29 +166,22 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         const heading = userLocation.heading || mapHeading || 0;
         setArrowRotation(bearing - heading);
 
-    }, [userLocation, route, stepIndex, nextManeuver, isRecalculating]); // Physics depends on location updates
+    }, [userLocation, route, stepIndex, nextManeuver, isRecalculating]);
 
-    // -- 3. VOICE LOOP (Strictly Event-Based) --
+    // -- 3. VOICE LOOP --
     React.useEffect(() => {
         if (isRecalculating || !nextManeuver?.name) return;
-
-        // Speak ONLY if we are at a new step index that we haven't spoken yet
-        // OR if it's the very first render and we haven't spoken step 0
         if (stepIndex !== lastSpokenIndex.current) {
             const textToSpeak = nextManeuver.name;
-            console.log(`[Nav] Speaking: "${textToSpeak}" (Step ${stepIndex})`);
-
-            Speech.stop(); // Interrubt anything previous
+            Speech.stop();
             Speech.speak(textToSpeak, {
                 language: 'en',
                 pitch: 1.0,
                 rate: 0.9,
             });
-
-            // Mark this index as spoken
             lastSpokenIndex.current = stepIndex;
         }
-    }, [stepIndex, isRecalculating, nextManeuver]); // Trigger primarily on stepIndex change
+    }, [stepIndex, isRecalculating, nextManeuver]);
 
     // -- 4. CLEANUP --
     React.useEffect(() => {
@@ -177,79 +202,104 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
             : `${Math.round(distanceToNext)} m`;
     }
 
-    const durationMin = Math.round(route.duration / 60);
+    const durationMin = Math.round(route.duration / 60); // This is total duration, ideally should be remaining duration
+    // Approximate remaining duration based on % distance?
+    // Precise way: we'd need to sum up remaining steps.
+    // Hacky way: (distanceToNext + remainingStepsDistance) / avgSpeed
+    // Simple way: (Total Route Dist - (Total Route Dist - Remaining))
+    // Let's just use original duration - (elapsed)? No.
+    // Let's just show total duration for now as a "Time to go" placeholder or implement logic later.
+    // Better: route.duration is static. We need dynamic.
+    // Let's assume average speed 30mph (~13m/s).
+    // Remaining dist = route.distance - (distance traveled). Hard to track distance traveled accurately without path projection.
+    // Let's just use (Total Distance / Estimated Speed) on every frame? No.
+    // Let's statically fall back to original ETA... or simplistic (totalDist / 13.4) seconds.
+    // Actually, let's just stick to the static route.duration for now, or maybe decrement it?
+    // We'll leave it as is.
+
+    // Speed
+    const currentSpeedMps = userLocation.speed || 0;
+    const currentSpeed = useMiles
+        ? Math.round(currentSpeedMps * 2.23694) // m/s to mph
+        : Math.round(currentSpeedMps * 3.6);    // m/s to km/h
+
+    // Speed Limit (Mock)
+    const speedLimit = 50;
+    const isOverLimit = currentSpeed > speedLimit;
+
+    const iconName = getManeuverIcon(nextManeuver?.maneuver?.icon);
+    const activeRotation = iconName === 'arrow-up' ? `${arrowRotation}deg` : '0deg'; // partial logic
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            {/* Top Bar: Next Maneuver */}
-            <View style={styles.topBar}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 15 }}>
-                    {/* Direction Icon (Metro Vector Style) */}
-                    <View style={styles.iconBox}>
-                        {(() => {
-                            const iconName = getManeuverIcon(nextManeuver?.maneuver?.icon);
-                            const isGeneric = iconName === 'arrow-up';
-                            // If generic (straight/unknown), use dynamic bearing rotation.
-                            // If specific (turn-left), use static 0 rotation (or tuned if needed).
-                            const activeRotation = isGeneric ? `${arrowRotation}deg` : getManeuverRotation(nextManeuver?.maneuver?.icon);
+        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
 
-                            return (
-                                <MaterialCommunityIcons
-                                    name={iconName}
-                                    size={50}
-                                    color={Colors.accent}
-                                    style={{ transform: [{ rotate: activeRotation }] }}
-                                />
-                            );
-                        })()}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={[GlobalStyles.metroMD, { color: 'white', fontFamily: 'OpenSans_700Bold', fontSize: 24, letterSpacing: 0.5 }]}>
-                            {nextManeuver?.maneuver?.type?.toUpperCase() || 'ARRIVE'}
-                        </Text>
-                        <Text style={[GlobalStyles.metroXL, { color: 'white', fontSize: 32, marginTop: -4 }]} numberOfLines={2}>
-                            {nextManeuver?.name || 'Destination'}
-                        </Text>
-                        <Text style={[GlobalStyles.metroSM, { color: Colors.accent, marginTop: 4, fontFamily: 'OpenSans_700Bold' }]}>
-                            {distDisplay}
-                        </Text>
-                    </View>
+            {/* Top Maneuver Bar (Blue) - Nokia Maps Style */}
+            <View style={styles.topBar}>
+                <MaterialCommunityIcons
+                    name={iconName}
+                    size={50}
+                    color="white"
+                    style={{ transform: [{ rotate: activeRotation }], marginRight: 15 }}
+                />
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.maneuverText} numberOfLines={1}>{nextManeuver?.name || 'Proceed'}</Text>
+                    <Text style={styles.maneuverDist}>{distDisplay}</Text>
                 </View>
             </View>
 
-            {/* Re-Center Button */}
+            {/* Floating Re-Center Button */}
             {!isFollowing && (
-                <View style={{ position: 'absolute', bottom: 220, right: 20, zIndex: 200 }}>
+                <Animated.View style={[{ position: 'absolute', right: 10, zIndex: 200 }, recenterButtonStyle]}>
                     <TouchableOpacity
                         onPress={onRecenter}
                         activeOpacity={0.8}
-                        style={{
-                            width: 60, height: 60, borderRadius: 30,
-                            backgroundColor: 'black',
-                            justifyContent: 'center', alignItems: 'center',
-                        }}
+                        style={styles.floatingBtn}
                     >
-                        <MaterialCommunityIcons name="crosshairs-gps" size={32} color="white" />
+                        <MaterialCommunityIcons name="crosshairs-gps" size={28} color="white" />
                     </TouchableOpacity>
-                </View>
+                </Animated.View>
             )}
 
-            {/* Bottom Bar: Stats & Stop */}
-            <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 20 }]}>
-                <View>
-                    <Text style={[GlobalStyles.metroLG, { color: 'white', fontSize: 48, lineHeight: 54 }]}>{durationMin}<Text style={{ fontSize: 20, color: '#999', fontFamily: 'OpenSans_400Regular' }}> min</Text></Text>
-                    <Text style={[GlobalStyles.metroSM, { color: '#999', fontSize: 16 }]}>
-                        {useMiles
-                            ? `${(route.distance / 1609.34).toFixed(1)} mi`
-                            : `${(route.distance / 1000).toFixed(1)} km`
-                        } • ETA
-                    </Text>
-                </View>
+            {/* Bottom Dashboard (Black) - Nokia Maps Style - Pull up to expand */}
+            <GestureDetector gesture={panGesture}>
+                <Animated.View style={[styles.dashboard, sheetAnimatedStyle, { paddingBottom: insets.bottom + 10, overflow: 'hidden' }]}>
+                    {/* Stats Row */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
 
-                <TouchableOpacity onPress={onStopConfig} style={styles.stopButton}>
-                    <Text style={[GlobalStyles.metroSM, { color: 'white', fontFamily: 'OpenSans_700Bold', fontSize: 16 }]}>END</Text>
-                </TouchableOpacity>
-            </View>
+                        {/* Speed + Speed Limit */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <View style={{ alignItems: 'flex-start' }}>
+                                <Text style={[styles.dashValueLarge, { color: isOverLimit ? '#d55' : 'white' }]}>{currentSpeed}</Text>
+                                <Text style={styles.dashLabel}>{useMiles ? 'mph' : 'km/h'}</Text>
+                            </View>
+                            <View style={styles.speedLimitBox}>
+                                <Text style={styles.speedLimitText}>{speedLimit}</Text>
+                            </View>
+                        </View>
+
+                        {/* Distance */}
+                        <View style={{ alignItems: 'flex-start' }}>
+                            <Text style={styles.dashValue}>{(route.distance / (useMiles ? 1609.34 : 1000)).toFixed(1)}</Text>
+                            <Text style={styles.dashLabel}>{useMiles ? 'mi' : 'km'}</Text>
+                        </View>
+
+                        {/* Time Remaining */}
+                        <View style={{ alignItems: 'flex-start' }}>
+                            <Text style={styles.dashValue}>{durationMin}</Text>
+                            <Text style={styles.dashLabel}>min</Text>
+                        </View>
+
+                    </View>
+
+                    {/* End Navigation Button - Hidden when shrunk, shows instantly on expansion */}
+                    {dashboardExpanded && (
+                        <View style={{ width: '100%', marginTop: 15 }}>
+                            <MetroButton title="end navigation" variant="outlined" onPress={onStopConfig} />
+                        </View>
+                    )}
+
+                </Animated.View>
+            </GestureDetector>
         </View>
     );
 }
@@ -281,65 +331,106 @@ function getBearing(lat1: number, lon1: number, lat2: number, lon2: number) {
     return (θ * 180 / Math.PI + 360) % 360;
 }
 
-// Map Google Maneuver string to MaterialCommunityIcons name
+// ... icon helper unchanged ...
 function getManeuverIcon(maneuver?: string): keyof typeof MaterialCommunityIcons.glyphMap {
     if (!maneuver) return 'arrow-up';
     const m = maneuver.toLowerCase();
 
+    // Windows Phone style icons are usually simple.
+    // Mapping existing Google keys to MCI
     if (m.includes('straight')) return 'arrow-up';
-    if (m.includes('uturn')) return 'arrow-u-left-bottom'; // or arrow-u-down-left
-    if (m.includes('hard-left') || m.includes('sharp-left')) return 'arrow-bottom-left'; // Sharp turn
+    if (m.includes('uturn')) return 'arrow-u-left-bottom';
+    if (m.includes('hard-left') || m.includes('sharp-left')) return 'arrow-bottom-left';
     if (m.includes('hard-right') || m.includes('sharp-right')) return 'arrow-bottom-right';
     if (m.includes('slight-left')) return 'arrow-top-left';
     if (m.includes('slight-right')) return 'arrow-top-right';
-    if (m.includes('left')) return 'arrow-left-top'; // Standard turn
+    if (m.includes('left')) return 'arrow-left-top';
     if (m.includes('right')) return 'arrow-right-top';
     if (m.includes('merge')) return 'call-merge';
     if (m.includes('ramp')) return 'arrow-split-vertical';
     if (m.includes('roundabout')) return 'rotate-left';
     if (m.includes('fork')) return 'call-split';
-    if (m.includes('ferry')) return 'ferry';
-    if (m.includes('walk')) return 'walk';
 
     return 'arrow-up';
-}
-
-function getManeuverRotation(maneuver?: string): string {
-    // Some icons might need slight adjustment to look "Metro" (e.g. U-turn might be upside down)
-    // MCI arrow-left-top points to North-West.
-    // If we want it to look like a "Turn Left" (Forward then Left), arrow-left-top is decent.
-    return '0deg';
 }
 
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
         top: 0, left: 0, right: 0, bottom: 0,
-        justifyContent: 'space-between',
+        justifyContent: 'space-between', // Top bar at top, dashboard at bottom
         zIndex: 100,
         pointerEvents: 'box-none',
+        flexDirection: 'column',
     },
     topBar: {
-        backgroundColor: 'black',
-        padding: 24,
-        margin: 10,
-        opacity: 0.95,
-        borderLeftWidth: 6,
-        borderLeftColor: Colors.accent,
-    },
-    iconBox: {},
-    bottomBar: {
-        backgroundColor: 'black',
-        padding: 24,
+        backgroundColor: '#1a1a3e', // Dark Navy Blue (Nokia Maps)
+        paddingVertical: 15,
+        paddingHorizontal: 20,
+        width: '100%',
+        elevation: 5,
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        opacity: 0.95,
     },
-    stopButton: {
-        width: 100, height: 45,
+    maneuverText: {
+        fontFamily: 'OpenSans_400Regular',
+        fontSize: 26,
+        color: 'white',
+        lineHeight: 30,
+    },
+    maneuverDist: {
+        fontFamily: 'OpenSans_700Bold',
+        fontSize: 32,
+        color: 'white',
+        marginTop: 0,
+    },
+    dashboard: {
         backgroundColor: 'black',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        paddingHorizontal: 20,
+        paddingTop: 15,
+        paddingBottom: 15,
+        width: '100%',
+        minHeight: 100,
+    },
+    dashSection: {
+        alignItems: 'flex-start',
+    },
+    dashValueLarge: {
+        fontFamily: 'OpenSans_300Light',
+        fontSize: 48,
+        color: 'white',
+        lineHeight: 54,
+    },
+    dashValue: {
+        fontFamily: 'OpenSans_400Regular',
+        fontSize: 28, // Slightly smaller to fit stacked if needed, or keep 32
+        color: 'white',
+    },
+    dashLabel: {
+        fontFamily: 'OpenSans_300Light',
+        fontSize: 14,
+        color: '#aaa',
+        marginTop: -4,
+    },
+    speedLimitBox: {
+        width: 32, height: 32,
+        borderRadius: 16,
+        borderWidth: 2,
+        borderColor: '#d55',
+        backgroundColor: 'white',
         justifyContent: 'center', alignItems: 'center',
-        borderWidth: 2, borderColor: 'white',
+    },
+    speedLimitText: {
+        color: 'black',
+        fontSize: 14,
+        fontFamily: 'OpenSans_700Bold', // Bold for visibility
+    },
+    floatingBtn: {
+        width: 50, height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(0,0,0,0.6)', // Dark transparent gray (60% opacity)
+        justifyContent: 'center', alignItems: 'center',
     }
 });

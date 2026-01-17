@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, View, Dimensions, TouchableWithoutFeedback } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing } from 'react-native-reanimated';
@@ -6,11 +6,10 @@ import { Colors } from '../constants/Colors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Snap Points
-const PEEK_HEIGHT = SCREEN_HEIGHT * 0.20;
+// Default Snap Points
+const DEFAULT_PEEK_HEIGHT = SCREEN_HEIGHT * 0.17;
 const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.9;
 const HIDDEN_Y = SCREEN_HEIGHT;
-const PEEK_Y = SCREEN_HEIGHT - PEEK_HEIGHT;
 const EXPANDED_Y = SCREEN_HEIGHT - EXPANDED_HEIGHT;
 
 interface BottomSheetProps {
@@ -19,11 +18,16 @@ interface BottomSheetProps {
     header: React.ReactNode;
     state: 'hidden' | 'peek' | 'expanded';
     onStateChange: (state: 'hidden' | 'peek' | 'expanded') => void;
+    peekHeight?: number; // Optional custom peek height
 }
 
-export function BottomSheet({ visible, children, header, state, onStateChange }: BottomSheetProps) {
+export function BottomSheet({ visible, children, header, state, onStateChange, peekHeight }: BottomSheetProps) {
     const translateY = useSharedValue(HIDDEN_Y);
     const context = useSharedValue({ y: 0 });
+
+    // Calculate peek Y based on custom or default height
+    const PEEK_HEIGHT = peekHeight ?? DEFAULT_PEEK_HEIGHT;
+    const PEEK_Y = SCREEN_HEIGHT - PEEK_HEIGHT;
 
     // Sync prop state to animation
     useEffect(() => {
@@ -41,7 +45,7 @@ export function BottomSheet({ visible, children, header, state, onStateChange }:
                 translateY.value = withTiming(EXPANDED_Y, config);
             }
         }
-    }, [visible, state]);
+    }, [visible, state, PEEK_Y]);
 
     // Gesture
     const gesture = Gesture.Pan()

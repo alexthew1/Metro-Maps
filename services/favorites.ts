@@ -3,9 +3,11 @@ import { SearchResult } from './api';
 
 const FAVORITES_KEY = '@metromaps_favorites';
 
+export type Favorite = SearchResult & { alias?: string };
+
 export const FavoritesService = {
     // Get all favorites
-    async getFavorites(): Promise<SearchResult[]> {
+    async getFavorites(): Promise<Favorite[]> {
         try {
             const jsonValue = await AsyncStorage.getItem(FAVORITES_KEY);
             return jsonValue != null ? JSON.parse(jsonValue) : [];
@@ -16,14 +18,26 @@ export const FavoritesService = {
     },
 
     // Add a favorite
-    async addFavorite(place: SearchResult): Promise<void> {
+    async addFavorite(place: SearchResult, alias?: string): Promise<void> {
         try {
             const favorites = await this.getFavorites();
-            // Avoid duplicates
-            if (!favorites.some(f => f.place_id === place.place_id)) {
-                const newFavorites = [...favorites, place];
-                await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(newFavorites));
+            // Avoid duplicates, but allow updating alias if exists?
+            // Ideally if it exists, we might want to just update the alias.
+            const existingIndex = favorites.findIndex(f => f.place_id === place.place_id);
+
+            let newFavorites;
+            if (existingIndex >= 0) {
+                // Update existing
+                const updated = { ...favorites[existingIndex], alias: alias || favorites[existingIndex].alias };
+                newFavorites = [...favorites];
+                newFavorites[existingIndex] = updated;
+            } else {
+                // Add new
+                const newFav: Favorite = { ...place, alias };
+                newFavorites = [...favorites, newFav];
             }
+
+            await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(newFavorites));
         } catch (e) {
             console.error('Failed to add favorite', e);
         }
@@ -44,5 +58,11 @@ export const FavoritesService = {
     async isFavorite(placeId: string): Promise<boolean> {
         const favorites = await this.getFavorites();
         return favorites.some(f => f.place_id === placeId);
+    },
+
+    // Get specific favorite
+    async getFavorite(placeId: string): Promise<Favorite | undefined> {
+        const favorites = await this.getFavorites();
+        return favorites.find(f => f.place_id === placeId);
     }
 };

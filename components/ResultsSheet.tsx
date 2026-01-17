@@ -63,7 +63,7 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
         const Header = (
             <View style={styles.header}>
                 <Text style={[GlobalStyles.metroXS, GlobalStyles.accentText, { marginBottom: 4 }]}>RESULT</Text>
-                <Text style={GlobalStyles.metroLG} numberOfLines={1}>{title}</Text>
+                <Text style={{ fontFamily: 'OpenSans_300Light', fontSize: 50, color: 'white', lineHeight: 55, letterSpacing: -1 }} numberOfLines={1}>{title}</Text>
                 <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText]} numberOfLines={1}>
                     {distanceText ? `${distanceText} • ` : ''}{subtitle}
                 </Text>
@@ -71,7 +71,7 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
         );
 
         return (
-            <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header}>
+            <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header} peekHeight={140}>
                 <View style={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
                     <View style={styles.row}>
                         <Text style={GlobalStyles.dimText}>Address: </Text>
@@ -94,12 +94,12 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
     const Header = (
         <View style={styles.header}>
             <Text style={[GlobalStyles.metroXS, GlobalStyles.accentText, { marginBottom: 4 }]}>SEARCH RESULTS</Text>
-            <Text style={GlobalStyles.metroLG}>{results.length} places found</Text>
+            <Text style={{ fontFamily: 'OpenSans_300Light', fontSize: 50, color: 'white', lineHeight: 55, letterSpacing: -1 }}>{results.length} places found</Text>
         </View>
     );
 
     return (
-        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header}>
+        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header} peekHeight={135}>
             <FlatList
                 contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
                 data={results}

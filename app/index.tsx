@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, BackHandler } from 'react-native';
+import { View, BackHandler, TouchableOpacity } from 'react-native';
 import { MapLayer } from '../components/MapLayer';
 import { AppBar } from '../components/AppBar';
 import { SearchCurtain } from '../components/SearchCurtain';
@@ -10,9 +10,13 @@ import { OptionsMenu } from '../components/OptionsMenu';
 import { api, RouteResult, SearchResult } from '../services/api';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { ActiveNavigation } from '../components/ActiveNavigation';
-import { FavoritesService } from '../services/favorites';
+import { FavoritesService, Favorite } from '../services/favorites';
+import { RecentsService } from '../services/recents';
+import { FavoritesSheet } from '../components/FavoritesSheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
     // State
@@ -22,6 +26,7 @@ export default function HomeScreen() {
     const [searchActive, setSearchActive] = useState(false);
     const [pivotActive, setPivotActive] = useState(false);
     const [optionsActive, setOptionsActive] = useState(false);
+    const [favoritesState, setFavoritesState] = useState<'hidden' | 'peek' | 'expanded'>('hidden');
     const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
     const [showLabels, setShowLabels] = useState(true);
     const [useMiles, setUseMiles] = useState(true); // true = miles, false = kilometers
@@ -113,7 +118,12 @@ export default function HomeScreen() {
                 // Prevent accidental exit. User must press 'END' button.
                 return true;
             }
+            if (activeNavigation) {
+                // Prevent accidental exit. User must press 'END' button.
+                return true;
+            }
             if (optionsActive) { setOptionsActive(false); return true; }
+            if (favoritesState !== 'hidden') { setFavoritesState('hidden'); return true; }
             if (pivotActive) {
                 setPivotActive(false);
                 setSelectedPlace(null);
@@ -142,7 +152,7 @@ export default function HomeScreen() {
         };
         const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
         return () => backHandler.remove();
-    }, [pivotActive, searchActive, navState, resultsState, optionsActive, activeNavigation]);
+    }, [pivotActive, searchActive, navState, resultsState, optionsActive, activeNavigation, favoritesState]);
 
 
     const [startPlace, setStartPlace] = useState<SearchResult | null>(null);
@@ -166,6 +176,7 @@ export default function HomeScreen() {
             setSearchResults([]);
             setSearchActive(false);
             setResultsState('peek');
+            RecentsService.addRecent(result); // Track recent
         }
     };
 
@@ -176,19 +187,22 @@ export default function HomeScreen() {
         setResultsState('peek');
     };
 
-    const handleGetDirections = async () => {
+    const handleGetDirections = async (targetPlace?: SearchResult) => {
         setPivotActive(false); // Close Pivot Screen
         setResultsState('hidden');
         setRouteError(null);
+
+        const place = targetPlace || selectedPlace;
+        if (!place) return;
 
         // Always reset to Driving (Car View) first
         setTransportMode('driving');
 
         // Optimistic / Immediate Attempt
-        if (userLocation && selectedPlace) {
+        if (userLocation) {
             const r = await api.getRoute(
                 { lat: userLocation.latitude, lon: userLocation.longitude },
-                { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) },
+                { lat: parseFloat(place.lat), lon: parseFloat(place.lon) },
                 'driving'
             );
 
@@ -303,11 +317,12 @@ export default function HomeScreen() {
         setRoute(null);
         setPivotActive(false);
         setOptionsActive(false);
+        setFavoritesState('hidden');
         setStartPlace(null); // Reset start place on clear
         setNavStep('setup'); // Reset step
     };
 
-    const appBarHidden = searchActive || resultsState !== 'hidden' || navState !== 'hidden' || pivotActive || optionsActive || activeNavigation;
+    const appBarHidden = searchActive || resultsState !== 'hidden' || navState !== 'hidden' || pivotActive || optionsActive || favoritesState !== 'hidden' || activeNavigation;
 
     return (
         <View style={{ flex: 1 }}>
@@ -324,6 +339,7 @@ export default function HomeScreen() {
                         setSelectedPlace(item);
                         setPivotActive(true); // Open FULL Pivot Info
                         setResultsState('hidden'); // Ensure results sheet is hidden/peek only if needed
+                        RecentsService.addRecent(item);
                     }
                 }}
                 cameraTrigger={cameraTrigger}
@@ -362,7 +378,6 @@ export default function HomeScreen() {
                         onCategorySearch={handleCategoryResults}
                         region={mapRegion}
                         userLocation={userLocation}
-                        favorites={favorites}
                     />
 
                     <ResultsSheet
@@ -374,6 +389,7 @@ export default function HomeScreen() {
                         onPlaceSelect={(place) => {
                             setSelectedPlace(place);
                             setSearchResults([]); // Hide other pins
+                            RecentsService.addRecent(place);
                         }}
                         userLocation={userLocation}
                         useMiles={useMiles}
@@ -422,7 +438,36 @@ export default function HomeScreen() {
                         showLabels={showLabels}
                         onShowLabelsChange={setShowLabels}
                     />
+
+                    <FavoritesSheet
+                        state={favoritesState}
+                        onStateChange={setFavoritesState}
+                        onSelect={(item) => {
+                            setFavoritesState('hidden');
+                            setSelectedPlace(item);
+                            // Direct to Directions
+                            handleGetDirections(item);
+                            RecentsService.addRecent(item);
+                        }}
+                    />
                 </>
+            )}
+
+            {!activeNavigation && (
+                <View style={{ position: 'absolute', bottom: 145, right: 20, zIndex: 50, opacity: appBarHidden ? 0 : 1 }} pointerEvents={appBarHidden ? 'none' : 'auto'}>
+                    <TouchableOpacity
+                        onPress={() => setOptionsActive(true)}
+                        activeOpacity={0.8}
+                        style={{
+                            width: 56, height: 56, borderRadius: 28,
+                            backgroundColor: 'rgba(0,0,0,0.6)', // Semi-transparent
+                            justifyContent: 'center', alignItems: 'center',
+                            // No border
+                        }}
+                    >
+                        <MaterialCommunityIcons name="layers-outline" size={28} color="white" />
+                    </TouchableOpacity>
+                </View>
             )}
 
             <AppBar
@@ -433,7 +478,7 @@ export default function HomeScreen() {
                     setUserLocation(location.coords);
                     setCameraTrigger(prev => prev + 1);
                 }}
-                onLayersPress={() => setOptionsActive(true)}
+                onFavoritesPress={() => setFavoritesState('peek')}
             />
         </View>
     );

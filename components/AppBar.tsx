@@ -5,18 +5,22 @@ import Svg, { Path } from 'react-native-svg';
 import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface AppBarProps {
     hidden: boolean;
     onSearchPress: () => void;
     onLocatePress: () => void;
-    onLayersPress: () => void;
+    onFavoritesPress: () => void;
 }
 
 const BAR_HEIGHT = 72;
 
-export function AppBar({ hidden, onSearchPress, onLocatePress, onLayersPress }: AppBarProps) {
+export function AppBar({ hidden, onSearchPress, onLocatePress, onFavoritesPress }: AppBarProps) {
     const insets = useSafeAreaInsets();
+
+    // We can keep labels hidden by default or passed as prop if needed. 
+    // For now, let's just minimalize it to match the requested style.
     const [showLabels, setShowLabels] = React.useState(false);
 
     // Increase height by safe area bottom + extra for labels if shown
@@ -57,19 +61,17 @@ export function AppBar({ hidden, onSearchPress, onLocatePress, onLayersPress }: 
                 </Svg>
             </CircleButton>
 
-            <CircleButton onPress={onLayersPress} label="options" showLabel={showLabels}>
-                {/* Layers Icon */}
-                <Svg width={22} height={22} fill="white" viewBox="0 0 24 24">
-                    <Path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z" />
-                </Svg>
+            <CircleButton onPress={onFavoritesPress} label="favorites" showLabel={showLabels}>
+                {/* Favorites Icon (Star) */}
+                <MaterialCommunityIcons name="star" size={24} color="white" />
             </CircleButton>
 
 
             <TouchableOpacity
-                style={{ padding: 10, position: 'absolute', right: 20, bottom: insets.bottom + 15 }}
+                style={{ padding: 5, position: 'absolute', right: 10, top: 10 }}
                 onPress={() => setShowLabels(!showLabels)}
             >
-                <Text style={{ fontSize: 32, color: 'white', lineHeight: 28, fontFamily: 'OpenSans_700Bold' }}>...</Text>
+                <Text style={{ fontSize: 24, color: 'white', fontFamily: 'OpenSans_700Bold', lineHeight: 24 }}>...</Text>
             </TouchableOpacity>
         </Animated.View>
     );
