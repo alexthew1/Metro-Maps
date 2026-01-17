@@ -14,6 +14,7 @@ MetroMaps 8.1 is a modern reimagining of the classic Windows Phone 8.1 maps expe
 - **Smart Routing**: Support for **Driving**, **Walking**, and **Public Transit** modes via Google Directions API.
 - **Vector Maps**: Custom-styled Google Maps renderer stripped of clutter to match the minimal UI.
 - **Satellite & Traffic**: Toggleable map layers with authentic tile styling.
+- **Active Navigation**: Full immersive turn-by-turn UI with dynamic re-routing, speed limit alerts, and gesture-based controls.
 
 ### Intelligent Search
 - **Universal Search**: Unified `SearchCurtain` for places, coordinates, and categories.
