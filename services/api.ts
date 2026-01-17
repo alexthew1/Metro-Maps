@@ -208,8 +208,8 @@ export const api = {
             const response = await fetch(url);
             const json = await response.json();
 
-            if (json.status !== 'OK' || !json.routes || !Array.isArray(json.routes) || json.routes.length === 0) {
-                console.warn(`Google Directions Warning: ${json.status}`);
+            if (json.status !== 'OK' || !json.routes || json.routes.length === 0) {
+                console.error("Google Directions Error:", json.status);
                 return null;
             }
 

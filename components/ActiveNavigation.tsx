@@ -430,7 +430,8 @@ const styles = StyleSheet.create({
     floatingBtn: {
         width: 50, height: 50,
         borderRadius: 25,
-        backgroundColor: 'rgba(0,0,0,0.6)', // Dark transparent gray (60% opacity)
+        backgroundColor: 'rgba(34, 34, 34, 0.6)',
         justifyContent: 'center', alignItems: 'center',
+        borderWidth: 1, borderColor: '#444',
     }
 });

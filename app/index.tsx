@@ -187,22 +187,19 @@ export default function HomeScreen() {
         setResultsState('peek');
     };
 
-    const handleGetDirections = async (targetPlace?: SearchResult) => {
+    const handleGetDirections = async () => {
         setPivotActive(false); // Close Pivot Screen
         setResultsState('hidden');
         setRouteError(null);
-
-        const place = targetPlace || selectedPlace;
-        if (!place) return;
 
         // Always reset to Driving (Car View) first
         setTransportMode('driving');
 
         // Optimistic / Immediate Attempt
-        if (userLocation) {
+        if (userLocation && selectedPlace) {
             const r = await api.getRoute(
                 { lat: userLocation.latitude, lon: userLocation.longitude },
-                { lat: parseFloat(place.lat), lon: parseFloat(place.lon) },
+                { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) },
                 'driving'
             );
 
@@ -445,8 +442,18 @@ export default function HomeScreen() {
                         onSelect={(item) => {
                             setFavoritesState('hidden');
                             setSelectedPlace(item);
-                            // Direct to Directions
-                            handleGetDirections(item);
+                            setPivotActive(item.place_id !== 'dummy'); // Only pivot if valid
+                            // Pivot logic needs ensuring valid item or just re-using same logic
+                            setPivotActive(true);
+                            setMapRegion({
+                                latitude: parseFloat(item.lat),
+                                longitude: parseFloat(item.lon),
+                                latitudeDelta: 0.05,
+                                longitudeDelta: 0.05,
+                            });
+                            setCameraTrigger(prev => prev + 1);
+
+                            // Also track this as a recent interaction
                             RecentsService.addRecent(item);
                         }}
                     />
