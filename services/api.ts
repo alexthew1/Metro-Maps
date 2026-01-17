@@ -13,6 +13,7 @@ export interface SearchResult {
     lon: string;
     display_name: string;
     type: string;
+    types?: string[]; // All types for filtering
     address?: string; // Formatted address
     rating?: number;
     user_ratings_total?: number;
@@ -95,6 +96,7 @@ export const api = {
                     lon: item.geometry.location.lng.toString(),
                     display_name: item.name,
                     type: item.types?.[0] || 'place',
+                    types: item.types,
                     address: item.formatted_address,
                     rating: item.rating,
                     user_ratings_total: item.user_ratings_total,
@@ -120,7 +122,14 @@ export const api = {
                 // Only filter by radius for "near me" searches, not for "in london" searches
                 if (applyRadiusFilter) {
                     const radiusKm = radius / 1000;
+                    const LOCATION_TYPES = ['locality', 'administrative_area_level_1', 'administrative_area_level_2', 'country', 'political'];
+
                     allResults = allResults.filter(r => {
+                        // Exception: If it's a major location (city, state, country), show it regardless of distance
+                        if (r.types?.some(t => LOCATION_TYPES.includes(t))) {
+                            return true;
+                        }
+
                         const dist = this.getDistance(location.lat, location.lon, parseFloat(r.lat), parseFloat(r.lon));
                         return dist <= radiusKm;
                     });
