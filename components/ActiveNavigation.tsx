@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image as RNImage, Platform, D
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
-import { RouteResult } from '../services/api';
+import { RouteResult, api } from '../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MetroButton } from './MetroButton';
 import * as Speech from 'expo-speech';
@@ -32,6 +32,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     const [arrowRotation, setArrowRotation] = React.useState(0);
     const [isRecalculating, setIsRecalculating] = React.useState(false);
     const [dashboardExpanded, setDashboardExpanded] = React.useState(false);
+    const [currentSpeedLimit, setCurrentSpeedLimit] = React.useState<number | null>(null);
 
     // -- ANIMATED SHEET --
     const PEEK_HEIGHT = 100;
@@ -83,6 +84,8 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     const lastRecalcTime = React.useRef<number>(0);
     const routeIdRef = React.useRef<string>('');
     const minDistRef = React.useRef<number>(Infinity);
+    const lastSpeedFetchTime = React.useRef<number>(0);
+    const hasArrivedRef = React.useRef<boolean>(false);
 
     // -- 1. RESET LOGIC --
     React.useEffect(() => {
@@ -95,6 +98,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                 lastSpokenIndex.current = -1;
                 routeIdRef.current = newId;
                 minDistRef.current = Infinity;
+                hasArrivedRef.current = false;
             }
         }
     }, [route]);
@@ -150,8 +154,15 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         }
 
         if (nextManeuver.maneuver.type === 'arrive') {
-            if (dist < 30) {
-                setStepIndex(prev => prev + 1);
+            // Arrive within 80m (approx 260ft) or 30m (100ft) as requested. 
+            // Using 80m as the threshold to be safe and responsive.
+            if (dist < 80) {
+                if (!hasArrivedRef.current) {
+                    hasArrivedRef.current = true;
+                    Speech.stop();
+                    Speech.speak("You have arrived at your destination");
+                    onStopConfig();
+                }
             }
         } else {
             if (minDistRef.current < 20 && dist > 25 && stepIndex < route.maneuvers.length - 1) {
@@ -171,7 +182,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     // -- 3. VOICE LOOP --
     React.useEffect(() => {
         if (isRecalculating || !nextManeuver?.name) return;
-        if (stepIndex !== lastSpokenIndex.current) {
+        if (stepIndex !== lastSpokenIndex.current && !hasArrivedRef.current) {
             const textToSpeak = nextManeuver.name;
             Speech.stop();
             Speech.speak(textToSpeak, {
@@ -183,10 +194,42 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         }
     }, [stepIndex, isRecalculating, nextManeuver]);
 
+    // -- 3.5 SPEED LIMIT LOOP --
+    React.useEffect(() => {
+        if (!userLocation) return;
+
+        const now = Date.now();
+        // Throttle: fetch every 20 seconds to save API quota
+        if (now - lastSpeedFetchTime.current > 20000) {
+            lastSpeedFetchTime.current = now;
+
+            api.getSpeedLimit(userLocation.latitude, userLocation.longitude)
+                .then(async limitKph => {
+                    if (limitKph) {
+                        setCurrentSpeedLimit(limitKph);
+                    } else if (stepIndex === 0 && route.coordinates && route.coordinates.length > 0) {
+                        // Fallback: If at start and no limit found (e.g. in driveway), 
+                        // check the route's starting point (the street).
+                        console.log('Fetching fallback speed limit for route start...');
+                        const startPoint = route.coordinates[0];
+                        const fallbackLimit = await api.getSpeedLimit(startPoint.latitude, startPoint.longitude);
+                        setCurrentSpeedLimit(fallbackLimit);
+                    } else {
+                        setCurrentSpeedLimit(null);
+                    }
+                })
+                .catch(err => console.log('Speed Limit Err', err));
+        }
+    }, [userLocation]);
+
     // -- 4. CLEANUP --
     React.useEffect(() => {
         return () => {
-            Speech.stop();
+            // Only stop speech if we haven't just arrived. 
+            // If we arrived, we want the "You have arrived" message to finish playing.
+            if (!hasArrivedRef.current) {
+                Speech.stop();
+            }
         };
     }, []);
 
@@ -224,11 +267,16 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         : Math.round(currentSpeedMps * 3.6);    // m/s to km/h
 
     // Speed Limit (Mock)
-    const speedLimit = 50;
-    const isOverLimit = currentSpeed > speedLimit;
+    // Speed Limit
+    // Convert KPH limit to MPH if needed
+    const displayLimit = currentSpeedLimit
+        ? (useMiles ? Math.round(currentSpeedLimit / 1.60934) : currentSpeedLimit)
+        : null;
+
+    const isOverLimit = displayLimit && currentSpeed > displayLimit + 5; // 5 unit buffer
 
     const iconName = getManeuverIcon(nextManeuver?.maneuver?.icon);
-    const activeRotation = iconName === 'arrow-up' ? `${arrowRotation}deg` : '0deg'; // partial logic
+    const activeRotation = '0deg'; // Disable rotation for default arrow as requested
 
     return (
         <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -273,7 +321,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                                 <Text style={styles.dashLabel}>{useMiles ? 'mph' : 'km/h'}</Text>
                             </View>
                             <View style={styles.speedLimitBox}>
-                                <Text style={styles.speedLimitText}>{speedLimit}</Text>
+                                <Text style={styles.speedLimitText}>{displayLimit || '--'}</Text>
                             </View>
                         </View>
 
@@ -300,7 +348,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
 
                 </Animated.View>
             </GestureDetector>
-        </View>
+        </View >
     );
 }
 

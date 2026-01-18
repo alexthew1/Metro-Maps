@@ -97,12 +97,12 @@ export const api = {
                     display_name: item.name,
                     type: item.types?.[0] || 'place',
                     types: item.types,
-                    address: item.formatted_address,
+                    address: item.formatted_address || item.vicinity,
                     rating: item.rating,
                     user_ratings_total: item.user_ratings_total,
                     price_level: item.price_level,
                     photos: item.photos,
-                    vicinity: item.formatted_address,
+                    vicinity: item.vicinity || item.formatted_address,
                     isOpen: item.opening_hours?.open_now,
                 }));
 
@@ -316,5 +316,25 @@ export const api = {
             return null;
         }
     },
+
+    // Google Roads API - Speed Limits
+    async getSpeedLimit(lat: number, lon: number): Promise<number | null> {
+        try {
+            // "path" parameter implies snapping, ensuring we get the road the user is ON.
+            // Using a single point as a path.
+            const url = `https://roads.googleapis.com/v1/speedLimits?path=${lat},${lon}&key=${GOOGLE_API_KEY}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.speedLimits && data.speedLimits.length > 0) {
+                const limit = data.speedLimits[0].speedLimit; // KPH
+                return limit;
+            }
+            return null;
+        } catch (error) {
+            console.error('Speed Limit fetch failed:', error);
+            return null;
+        }
+    }
 };
 

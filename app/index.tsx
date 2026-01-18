@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
     // State
-    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number, heading?: number | null } | null>(null);
+    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number, heading?: number | null, speed?: number | null } | null>(null);
 
     // UI Modes
     const [searchActive, setSearchActive] = useState(false);
@@ -29,6 +29,7 @@ export default function HomeScreen() {
     const [favoritesState, setFavoritesState] = useState<'hidden' | 'peek' | 'expanded'>('hidden');
     const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
     const [showLabels, setShowLabels] = useState(true);
+    const [showsBuildings, setShowsBuildings] = useState(true);
     const [useMiles, setUseMiles] = useState(true); // true = miles, false = kilometers
     const [cameraTrigger, setCameraTrigger] = useState(0);
     const [mapRegion, setMapRegion] = useState<any>(null); // Track map region for search context
@@ -319,6 +320,8 @@ export default function HomeScreen() {
         setNavStep('setup'); // Reset step
     };
 
+
+
     const appBarHidden = searchActive || resultsState !== 'hidden' || navState !== 'hidden' || pivotActive || optionsActive || favoritesState !== 'hidden' || activeNavigation;
 
     return (
@@ -330,6 +333,7 @@ export default function HomeScreen() {
                 route={route}
                 mapType={mapType}
                 showLabels={showLabels}
+                showsBuildings={showsBuildings}
                 onMapPress={handleMapPress}
                 onPinPress={(item) => {
                     if (item) {
@@ -434,6 +438,8 @@ export default function HomeScreen() {
                         onMapTypeChange={setMapType}
                         showLabels={showLabels}
                         onShowLabelsChange={setShowLabels}
+                        showsBuildings={showsBuildings}
+                        onShowsBuildingsChange={setShowsBuildings}
                     />
 
                     <FavoritesSheet

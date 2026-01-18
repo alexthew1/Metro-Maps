@@ -25,6 +25,14 @@ export function BottomSheet({ visible, children, header, state, onStateChange, p
     const translateY = useSharedValue(HIDDEN_Y);
     const context = useSharedValue({ y: 0 });
 
+    // Track state as a shared value for use in worklets (0=hidden, 1=peek, 2=expanded)
+    const stateValue = useSharedValue(state === 'hidden' ? 0 : state === 'peek' ? 1 : 2);
+
+    // Sync React state to shared value
+    useEffect(() => {
+        stateValue.value = state === 'hidden' ? 0 : state === 'peek' ? 1 : 2;
+    }, [state]);
+
     // Calculate peek Y based on custom or default height
     const PEEK_HEIGHT = peekHeight ?? DEFAULT_PEEK_HEIGHT;
     const PEEK_Y = SCREEN_HEIGHT - PEEK_HEIGHT;
@@ -33,7 +41,7 @@ export function BottomSheet({ visible, children, header, state, onStateChange, p
     useEffect(() => {
         const config = {
             duration: 400,
-            easing: Easing.bezier(0.1, 0.9, 0.2, 1) // Metro "Standard" Curve
+            easing: Easing.out(Easing.cubic) // Smooth Cubic Out
         };
 
         if (!visible || state === 'hidden') {
@@ -72,15 +80,29 @@ export function BottomSheet({ visible, children, header, state, onStateChange, p
             const dragY = event.translationY; // Down is positive
 
             let targetState: 'hidden' | 'peek' | 'expanded' = state === 'hidden' ? 'peek' : state;
+            let targetY = state === 'peek' ? PEEK_Y : EXPANDED_Y;
 
             // Threshold logic
             if (state === 'peek') {
-                if (dragY < -50) targetState = 'expanded'; // Drag up -> expand
+                if (dragY < -50) {
+                    targetState = 'expanded';
+                    targetY = EXPANDED_Y;
+                } else {
+                    targetY = PEEK_Y;
+                }
             } else if (state === 'expanded') {
-                if (dragY > 80) targetState = 'peek'; // Drag down to shrink
+                if (dragY > 80) {
+                    targetState = 'peek';
+                    targetY = PEEK_Y;
+                } else {
+                    targetY = EXPANDED_Y;
+                }
             }
 
-            // Run Callback
+            // Animate immediately on UI thread (no JS round-trip delay)
+            translateY.value = withTiming(targetY, { duration: 350, easing: Easing.out(Easing.cubic) });
+
+            // Sync state to React (for other components to know)
             runOnJS(onStateChange)(targetState);
         });
 

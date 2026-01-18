@@ -10,44 +10,11 @@ import { Ionicons } from '@expo/vector-icons';
 // Metro/Here Maps Desaturated Style (User Provided + Business Labels)
 const MAP_STYLE = [
     {
-        "featureType": "administrative",
-        "elementType": "labels.text.fill",
-        "stylers": [
-            {
-                "color": "#6195a0"
-            }
-        ]
-    },
-    {
-        "featureType": "administrative.province",
-        "elementType": "geometry.stroke",
-        "stylers": [
-            {
-                "visibility": "on"
-            },
-            {
-                "color": "#888888"
-            },
-            {
-                "weight": 1.5
-            }
-        ]
-    },
-    {
         "featureType": "landscape",
         "elementType": "geometry",
         "stylers": [
             {
-                "lightness": "0"
-            },
-            {
-                "saturation": "0"
-            },
-            {
-                "color": "#f5f5f2"
-            },
-            {
-                "gamma": "1"
+                "visibility": "on"
             }
         ]
     },
@@ -56,26 +23,109 @@ const MAP_STYLE = [
         "elementType": "all",
         "stylers": [
             {
-                "lightness": "-3"
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "landscape.man_made",
+        "elementType": "geometry",
+        "stylers": [
+            {
+                "visibility": "simplified"
             },
             {
-                "gamma": "1.00"
+                "hue": "#ff0000"
+            }
+        ]
+    },
+    {
+        "featureType": "landscape.man_made",
+        "elementType": "labels",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "landscape.natural",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "landscape.natural",
+        "elementType": "geometry",
+        "stylers": [
+            {
+                "color": "#d0e3b4"
             }
         ]
     },
     {
         "featureType": "landscape.natural.terrain",
-        "elementType": "all",
+        "elementType": "geometry",
         "stylers": [
             {
                 "visibility": "off"
             }
         ]
     },
-    // MODIFIED: Enable POI Labels (specifically Business)
+    {
+        "featureType": "poi",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
     {
         "featureType": "poi",
         "elementType": "labels",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "poi",
+        "elementType": "labels.text.fill",
+        "stylers": [
+            {
+                "color": "#000000"
+            }
+        ]
+    },
+    {
+        "featureType": "poi",
+        "elementType": "labels.text.stroke",
+        "stylers": [
+            {
+                "color": "#ffffff"
+            }
+        ]
+    },
+    {
+        "featureType": "poi",
+        "elementType": "labels.icon",
+        "stylers": [
+            {
+                "visibility": "on"
+            },
+            {
+                "color": "#3275eb"
+            }
+        ]
+    },
+    {
+        "featureType": "poi.attraction",
+        "elementType": "all",
         "stylers": [
             {
                 "visibility": "on"
@@ -87,19 +137,61 @@ const MAP_STYLE = [
         "elementType": "all",
         "stylers": [
             {
-                "visibility": "simplified"
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "poi.business",
+        "elementType": "labels.text.fill",
+        "stylers": [
+            {
+                "color": "#000000"
+            }
+        ]
+    },
+    {
+        "featureType": "poi.business",
+        "elementType": "labels.text.stroke",
+        "stylers": [
+            {
+                "color": "#ffffff"
+            }
+        ]
+    },
+    {
+        "featureType": "poi.government",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "poi.medical",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "poi.medical",
+        "elementType": "geometry",
+        "stylers": [
+            {
+                "color": "#fbd3da"
             }
         ]
     },
     {
         "featureType": "poi.park",
-        "elementType": "geometry.fill",
+        "elementType": "geometry",
         "stylers": [
             {
-                "color": "#bae5ce"
-            },
-            {
-                "visibility": "on"
+                "color": "#bde6ab"
             }
         ]
     },
@@ -108,22 +200,25 @@ const MAP_STYLE = [
         "elementType": "all",
         "stylers": [
             {
-                "saturation": -100
-            },
-            {
-                "lightness": 45
-            },
-            {
-                "visibility": "simplified"
+                "visibility": "on"
             }
         ]
     },
     {
-        "featureType": "road.highway",
-        "elementType": "all",
+        "featureType": "road",
+        "elementType": "geometry.stroke",
         "stylers": [
             {
-                "visibility": "simplified"
+                "visibility": "off"
+            }
+        ]
+    },
+    {
+        "featureType": "road",
+        "elementType": "labels",
+        "stylers": [
+            {
+                "visibility": "on"
             }
         ]
     },
@@ -132,37 +227,34 @@ const MAP_STYLE = [
         "elementType": "geometry.fill",
         "stylers": [
             {
-                "color": "#fac9a9"
-            },
-            {
-                "visibility": "simplified"
+                "color": "#ffe15f"
             }
         ]
     },
     {
         "featureType": "road.highway",
-        "elementType": "labels.text",
+        "elementType": "geometry.stroke",
         "stylers": [
             {
-                "color": "#4e4e4e"
+                "color": "#efd151"
             }
         ]
     },
     {
         "featureType": "road.arterial",
-        "elementType": "labels.text.fill",
+        "elementType": "geometry.fill",
         "stylers": [
             {
-                "color": "#787878"
+                "color": "#ffffff"
             }
         ]
     },
     {
-        "featureType": "road.arterial",
-        "elementType": "labels.icon",
+        "featureType": "road.local",
+        "elementType": "geometry.fill",
         "stylers": [
             {
-                "visibility": "off"
+                "color": "black"
             }
         ]
     },
@@ -171,62 +263,59 @@ const MAP_STYLE = [
         "elementType": "all",
         "stylers": [
             {
-                "visibility": "simplified"
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "transit.line",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "transit.station",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
             }
         ]
     },
     {
         "featureType": "transit.station.airport",
-        "elementType": "labels.icon",
-        "stylers": [
-            {
-                "hue": "#0a00ff"
-            },
-            {
-                "saturation": "-77"
-            },
-            {
-                "gamma": "0.57"
-            },
-            {
-                "lightness": "0"
-            }
-        ]
-    },
-    {
-        "featureType": "transit.station.rail",
-        "elementType": "labels.text.fill",
-        "stylers": [
-            {
-                "color": "#43321e"
-            }
-        ]
-    },
-    {
-        "featureType": "transit.station.rail",
-        "elementType": "labels.icon",
-        "stylers": [
-            {
-                "hue": "#ff6c00"
-            },
-            {
-                "lightness": "4"
-            },
-            {
-                "gamma": "0.75"
-            },
-            {
-                "saturation": "-68"
-            }
-        ]
-    },
-    {
-        "featureType": "water",
         "elementType": "all",
         "stylers": [
             {
-                "color": "#eaf6f8"
-            },
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "transit.station.airport",
+        "elementType": "geometry.fill",
+        "stylers": [
+            {
+                "color": "#cfb2db"
+            }
+        ]
+    },
+    {
+        "featureType": "transit.station.bus",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "transit.station.rail",
+        "elementType": "all",
+        "stylers": [
             {
                 "visibility": "on"
             }
@@ -234,25 +323,10 @@ const MAP_STYLE = [
     },
     {
         "featureType": "water",
-        "elementType": "geometry.fill",
+        "elementType": "geometry",
         "stylers": [
             {
-                "color": "#c7eced"
-            }
-        ]
-    },
-    {
-        "featureType": "water",
-        "elementType": "labels.text.fill",
-        "stylers": [
-            {
-                "lightness": "-49"
-            },
-            {
-                "saturation": "-53"
-            },
-            {
-                "gamma": "0.79"
+                "color": "#a2daf2"
             }
         ]
     }
@@ -273,9 +347,10 @@ interface MapLayerProps {
     onFollowChange?: (following: boolean) => void;
     onHeadingChange?: (heading: number) => void;
     showLabels?: boolean;
+    showsBuildings?: boolean;
 }
 
-export function MapLayer({ userLocation, destination, results = [], route, mapType = 'standard', showLabels = true, onMapPress, onPinPress, cameraTrigger, onRegionChange, cameraMode = 'default', isFollowing = true, onFollowChange, onHeadingChange }: MapLayerProps) {
+export function MapLayer({ userLocation, destination, results = [], route, mapType = 'standard', showLabels = true, showsBuildings = true, onMapPress, onPinPress, cameraTrigger, onRegionChange, cameraMode = 'default', isFollowing = true, onFollowChange, onHeadingChange }: MapLayerProps) {
     // Determine effective map type for Satellite/Hybrid switch
     const effectiveMapType = mapType === 'satellite'
         ? (showLabels ? 'hybrid' : 'satellite')
@@ -518,7 +593,7 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                 showsUserLocation={cameraMode !== 'navigation'} // Hide default blue dot in nav
                 showsMyLocationButton={false}
                 showsCompass={false}
-                showsBuildings={true}
+                showsBuildings={showsBuildings}
                 showsIndoors={true}
                 pitchEnabled={true}
                 rotateEnabled={true}

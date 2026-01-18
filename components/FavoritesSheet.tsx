@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming, Easing, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming, Easing, useSharedValue, interpolateColor, SharedValue } from 'react-native-reanimated';
 import PagerView from 'react-native-pager-view';
 import { BottomSheet } from './BottomSheet';
 import { Colors } from '../constants/Colors';
@@ -10,6 +10,22 @@ import { RecentsService } from '../services/recents';
 import { SearchResult } from '../services/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+// Simple Pivot Item with discrete color (jitter-free)
+function AnimatedFavPivotItem({ isActive, title, onPress }: {
+    isActive: boolean;
+    title: string;
+    onPress: () => void;
+}) {
+    return (
+        <TouchableOpacity onPress={onPress}>
+            <Text style={[styles.pivotTitle, { color: isActive ? '#ffffff' : '#666666' }]}>
+                {title}
+            </Text>
+        </TouchableOpacity>
+    );
+}
+
 
 interface FavoritesSheetProps {
     state: 'hidden' | 'peek' | 'expanded';
@@ -152,13 +168,13 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
         );
     };
 
-    // Animation: slide the pivot row left when switching to 'recent' to keep both tabs visible.
-    // Increased offset so only last ~2 letters of inactive tab are visible.
+    // Animation: pivotOffset for translateX with timing (discrete color changes, no scroll-based interpolation)
+    const activeTabIndex = activeTab === 'favorites' ? 0 : 1;
     const pivotOffset = useSharedValue(0);
 
     useEffect(() => {
-        pivotOffset.value = withTiming(activeTab === 'recent' ? -180 : 0, { duration: 300, easing: Easing.out(Easing.cubic) });
-    }, [activeTab]);
+        pivotOffset.value = withTiming(-activeTabIndex * 180, { duration: 350, easing: Easing.out(Easing.cubic) });
+    }, [activeTabIndex]);
 
     const pivotAnimatedStyle = useAnimatedStyle(() => {
         return {
@@ -176,21 +192,25 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
         setActiveTab(page === 0 ? 'favorites' : 'recent');
     };
 
-    const Header = (
-        <View style={styles.headerContainer}>
-            <Text style={[styles.overline, { marginBottom: 8 }]}>MY PLACES</Text>
-            <View style={{ overflow: 'hidden', height: 70, marginBottom: 0 }}>
+    const Header = useMemo(() => (
+        <View style={[styles.headerContainer, { overflow: 'hidden' }]}>
+            <Text style={[styles.overline, { marginBottom: 8, marginHorizontal: 20 }]}>MY PLACES</Text>
+            <View style={{ height: 70, marginBottom: 0, marginLeft: 20 }}>
                 <Animated.View style={[styles.pivotRow, pivotAnimatedStyle]}>
-                    <TouchableOpacity onPress={() => handleTabChange('favorites')}>
-                        <Text style={[styles.pivotTitle, activeTab === 'favorites' ? styles.pivotActive : styles.pivotInactive]}>favorites</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleTabChange('recent')}>
-                        <Text style={[styles.pivotTitle, activeTab === 'recent' ? styles.pivotActive : styles.pivotInactive]}>recent</Text>
-                    </TouchableOpacity>
+                    <AnimatedFavPivotItem
+                        isActive={activeTab === 'favorites'}
+                        title="favorites"
+                        onPress={() => handleTabChange('favorites')}
+                    />
+                    <AnimatedFavPivotItem
+                        isActive={activeTab === 'recent'}
+                        title="recent"
+                        onPress={() => handleTabChange('recent')}
+                    />
                 </Animated.View>
             </View>
         </View>
-    );
+    ), [activeTab, pivotAnimatedStyle]);
 
     return (
         <BottomSheet visible={state !== 'hidden'} state={state} onStateChange={onStateChange} header={Header} peekHeight={155}>
@@ -198,6 +218,7 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                 ref={pagerRef}
                 style={{ flex: 1, paddingBottom: insets.bottom + 20 }}
                 initialPage={0}
+                offscreenPageLimit={1}
                 onPageSelected={handlePageSelected}
             >
                 <View key="1" style={{ flex: 1 }}>
@@ -244,7 +265,6 @@ const styles = StyleSheet.create({
         zIndex: 100,
     },
     headerContainer: {
-        paddingHorizontal: 20,
         paddingTop: 20,
         marginBottom: 10,
     },

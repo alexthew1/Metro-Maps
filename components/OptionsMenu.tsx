@@ -1,8 +1,10 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Pressable, BackHandler } from 'react-native';
+import React, { useEffect } from 'react';
+import Animated, { useAnimatedStyle, withTiming, useSharedValue, Easing } from 'react-native-reanimated';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 interface OptionsMenuProps {
     active: boolean;
@@ -13,12 +15,15 @@ interface OptionsMenuProps {
     onMapTypeChange?: (type: 'standard' | 'satellite') => void;
     showLabels?: boolean;
     onShowLabelsChange?: (val: boolean) => void;
+    showsBuildings?: boolean;
+    onShowsBuildingsChange?: (val: boolean) => void;
 }
 
 const THUMB_MAP = require('../assets/images/thumb_map.png');
 const THUMB_SAT = require('../assets/images/thumb_satellite.png');
 
-export function OptionsMenu({ active, onClose, useMiles, onUseMilesChange, mapType = 'standard', onMapTypeChange, showLabels = true, onShowLabelsChange }: OptionsMenuProps) {
+
+export function OptionsMenu({ active, onClose, useMiles, onUseMilesChange, mapType = 'standard', onMapTypeChange, showLabels = true, onShowLabelsChange, showsBuildings = true, onShowsBuildingsChange }: OptionsMenuProps) {
     const insets = useSafeAreaInsets();
 
     const animatedStyle = useAnimatedStyle(() => {
@@ -28,11 +33,32 @@ export function OptionsMenu({ active, onClose, useMiles, onUseMilesChange, mapTy
         };
     }, [active]);
 
+    // Hardware Back Button Handler
+    useEffect(() => {
+        const backAction = () => {
+            if (active) {
+                onClose();
+                return true; // Prevent default behavior (exit app)
+            }
+            return false;
+        };
+
+        const backHandler = BackHandler.addEventListener(
+            'hardwareBackPress',
+            backAction
+        );
+
+        return () => backHandler.remove();
+    }, [active, onClose]);
+
     return (
-        <Animated.View style={[styles.container, animatedStyle, { paddingTop: insets.top + 32 }]}>
-            <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+        <Animated.View style={[styles.container, animatedStyle, { paddingTop: insets.top + 20 }]}>
+            {/* Background overlay - blocks touches but does NOT close menu */}
+            <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} />
 
             <View pointerEvents="box-none" style={{ padding: 20 }}>
+                {/* Back Button Removed - Request to use Hardware Back Button */}
+
                 <Text style={[GlobalStyles.metroXL, { marginBottom: 30, marginLeft: -2 }]}>map options</Text>
 
                 {/* Map Type Tiles (Grid) */}
@@ -56,42 +82,78 @@ export function OptionsMenu({ active, onClose, useMiles, onUseMilesChange, mapTy
 
                 {/* Settings / Features List */}
                 <View style={{ gap: 20 }}>
-                    {/* Street Labels Checkbox (Metro Style) */}
-                    <TouchableOpacity
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}
-                        onPress={() => onShowLabelsChange && onShowLabelsChange(!showLabels)}
-                    >
-                        <View style={[styles.checkbox, showLabels && styles.checkboxChecked]}>
-                            {showLabels && <View style={styles.checkmark} />}
-                        </View>
-                        <Text style={GlobalStyles.metroMD}>street labels</Text>
-                    </TouchableOpacity>
+                    {/* Street Labels Toggle */}
+                    <View style={styles.optionRow}>
+                        <Text style={[GlobalStyles.metroMD, { flex: 1 }]}>street labels</Text>
+                        <MetroSwitch
+                            value={showLabels || false}
+                            onValueChange={(val) => onShowLabelsChange?.(val)}
+                        />
+                    </View>
 
-                    {/* Imperial Units Checkbox */}
-                    <TouchableOpacity
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}
-                        onPress={() => onUseMilesChange(!useMiles)}
-                    >
-                        <View style={[styles.checkbox, useMiles && styles.checkboxChecked]}>
-                            {useMiles && <View style={styles.checkmark} />}
-                        </View>
-                        <Text style={GlobalStyles.metroMD}>imperial units</Text>
-                    </TouchableOpacity>
+                    {/* Imperial Units Toggle */}
+                    <View style={styles.optionRow}>
+                        <Text style={[GlobalStyles.metroMD, { flex: 1 }]}>Imperial Units</Text>
+                        <MetroSwitch
+                            value={useMiles}
+                            onValueChange={onUseMilesChange}
+                        />
+                    </View>
+
+                    {/* 3D Buildings Toggle */}
+                    <View style={styles.optionRow}>
+                        <Text style={[GlobalStyles.metroMD, { flex: 1 }]}>3D Buildings</Text>
+                        <MetroSwitch
+                            value={showsBuildings || false}
+                            onValueChange={(val) => onShowsBuildingsChange?.(val)}
+                        />
+                    </View>
                 </View>
             </View>
         </Animated.View>
     );
 }
 
+function MetroSwitch({ value, onValueChange }: { value: boolean, onValueChange: (val: boolean) => void }) {
+    // Animation: Thumb Translation (0 -> 34)
+    const thumbStyle = useAnimatedStyle(() => {
+        return {
+            transform: [
+                { translateX: withTiming(value ? 34 : 0, { duration: 150, easing: Easing.linear }) }
+            ]
+        };
+    }, [value]);
+
+    // Animation: Track Color
+    const trackAnimatedStyle = useAnimatedStyle(() => {
+        return {
+            backgroundColor: withTiming(value ? Colors.accent : '#999999', { duration: 150, easing: Easing.linear }),
+        };
+    }, [value]);
+
+    return (
+        <Pressable
+            onPress={() => onValueChange(!value)}
+            style={styles.switchContainer}
+        >
+            {/* Track Layer: White Border, Centered */}
+            <Animated.View style={[styles.switchTrack, trackAnimatedStyle]} />
+
+            {/* Thumb Layer: Dark Block, Overlaps Outline */}
+            <Animated.View style={[styles.switchThumb, thumbStyle]} />
+        </Pressable>
+    );
+}
+
 const styles = StyleSheet.create({
     container: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(31,31,31,0.75)', // 75% opacity (25% transparent)
+        backgroundColor: 'rgba(31,31,31,0.75)',
         zIndex: 55,
     },
     mapTile: {
         width: 120,
-        height: 120, // Larger Square
+        height: 120,
         borderWidth: 2,
         borderColor: 'transparent',
         backgroundColor: '#444',
@@ -100,21 +162,37 @@ const styles = StyleSheet.create({
         borderColor: Colors.accent,
         borderWidth: 3,
     },
-    checkbox: {
-        width: 26,
-        height: 26,
-        borderWidth: 2,
-        borderColor: '#fff',
+    optionRow: {
+        flexDirection: 'row',
         alignItems: 'center',
+        gap: 15,
+        justifyContent: 'flex-end',
+        paddingRight: 4,
+    },
+    // Metro Switch Styles
+    switchContainer: {
+        width: 49,
+        height: 22,
+        backgroundColor: '#ffffff', // The "Outline" Color
         justifyContent: 'center',
+        alignItems: 'center',
+        position: 'relative',
     },
-    checkboxChecked: {
-        borderColor: Colors.accent,
-        backgroundColor: Colors.accent,
+    switchTrack: {
+        width: 45,
+        height: 18,
+        borderWidth: 1,
+        borderColor: '#000000',
     },
-    checkmark: {
-        width: 14,
-        height: 14,
-        backgroundColor: 'white',
+    switchThumb: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: 15,
+        height: 22,
+        backgroundColor: '#222222', // The Thumb Color
+        borderWidth: 1,
+        borderColor: '#222222',
+        zIndex: 10,
     }
 });

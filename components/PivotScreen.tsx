@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Image, Linking, Platform, Share } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming, Easing, SlideInDown, SlideOutDown, useSharedValue, interpolate, Extrapolation } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming, Easing, SlideInDown, SlideOutDown, useSharedValue, interpolate, Extrapolation, interpolateColor, SharedValue } from 'react-native-reanimated';
 import PagerView from 'react-native-pager-view';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { GlobalStyles } from '../constants/Styles';
@@ -9,6 +9,21 @@ import { MetroButton } from './MetroButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchResult, api } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
+
+// Simple Pivot Item with discrete color (jitter-free)
+function AnimatedPivotItem({ isActive, title, onPress }: {
+    isActive: boolean;
+    title: string;
+    onPress: () => void;
+}) {
+    return (
+        <TouchableOpacity onPress={onPress}>
+            <Text style={[styles.pivotHeaderItem, { color: isActive ? '#ffffff' : '#666666' }]}>
+                {title}
+            </Text>
+        </TouchableOpacity>
+    );
+}
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -26,7 +41,6 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
     const insets = useSafeAreaInsets();
     const pagerRef = useRef<PagerView>(null);
     const [activePage, setActivePage] = useState(0);
-    const scrollOffset = useSharedValue(0);
     const [details, setDetails] = useState<SearchResult | null>(item);
     const [showLabels, setShowLabels] = useState(false);
 
@@ -57,23 +71,21 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
         setActivePage(e.nativeEvent.position);
     };
 
-    const handlePageScroll = (e: any) => {
-        'worklet';
-        const { position, offset } = e.nativeEvent;
-        scrollOffset.value = position + offset;
-    };
-
     const snapToPage = (index: number) => {
         pagerRef.current?.setPage(index);
         setActivePage(index);
     };
 
-    // Header Animation
-    // Shift headers left as we scroll right.
+    // Header Animation - Triggered on page selection for smooth, jitter-free transitions
+    const headerOffset = useSharedValue(0);
+
+    useEffect(() => {
+        headerOffset.value = withTiming(-activePage * 140, { duration: 300, easing: Easing.out(Easing.cubic) });
+    }, [activePage]);
+
     const headerStyle = useAnimatedStyle(() => {
-        // Approximate shift: - (scroll * 150)
         return {
-            transform: [{ translateX: -scrollOffset.value * 140 }]
+            transform: [{ translateX: headerOffset.value }]
         };
     });
 
@@ -81,8 +93,8 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
 
     return (
         <Animated.View
-            entering={SlideInDown.duration(300).easing(Easing.out(Easing.quad))}
-            exiting={SlideOutDown.duration(200)}
+            entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))}
+            exiting={SlideOutDown.duration(400).easing(Easing.out(Easing.cubic))}
             style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: 0 }]} // Handle paddingBottom in AppBar
         >
             {/* Background - Black for WP Style */}
@@ -98,20 +110,14 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
             {/* Pivot Headers Container (Masked) */}
             <View style={{ overflow: 'hidden', marginLeft: 20, height: 80, marginBottom: 10 }}>
                 <Animated.View style={[styles.pivotHeaderContainer, headerStyle]}>
-                    {['about', 'photos', 'reviews'].map((title, index) => {
-                        // We can also animate opacity individually if we want, but simple highlight is ok
-                        const isActive = activePage === index;
-                        return (
-                            <TouchableOpacity key={title} onPress={() => snapToPage(index)}>
-                                <Text style={[
-                                    styles.pivotHeaderItem,
-                                    { color: isActive ? '#fff' : '#666' }
-                                ]}>
-                                    {title}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
+                    {['about', 'photos', 'reviews'].map((title, index) => (
+                        <AnimatedPivotItem
+                            key={title}
+                            isActive={activePage === index}
+                            title={title}
+                            onPress={() => snapToPage(index)}
+                        />
+                    ))}
                 </Animated.View>
             </View>
 
@@ -120,8 +126,8 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                 ref={pagerRef}
                 style={{ flex: 1, marginBottom: totalHeight }} // Add margin to avoid overlap with absolute AppBar
                 initialPage={0}
+                offscreenPageLimit={2}
                 onPageSelected={handlePageSelection}
-                onPageScroll={handlePageScroll}
                 pageMargin={20}
             >
                 {/* PAGE 1: ABOUT */}

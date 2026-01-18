@@ -13,8 +13,25 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { useFonts, OpenSans_300Light, OpenSans_400Regular, OpenSans_600SemiBold, OpenSans_700Bold } from '@expo-google-fonts/open-sans';
 import * as SplashScreen from 'expo-splash-screen';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
+
+function StatusBarBackground() {
+    const insets = useSafeAreaInsets();
+    return (
+        <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: insets.top,
+            backgroundColor: 'black',
+            zIndex: 9999
+        }} />
+    );
+}
 
 export default function RootLayout() {
     const [fontsLoaded] = useFonts({
@@ -52,6 +69,7 @@ export default function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1 }}>
             <ErrorBoundary>
                 <View style={{ flex: 1, backgroundColor: Colors.background }}>
+                    <StatusBarBackground />
                     <ExpoStatusBar style="light" />
                     <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
                         <Stack.Screen name="index" />
