@@ -1,0 +1,32 @@
+{
+    "cli": {
+        "version": ">= 10.0.0"
+    },
+    "build": {
+        "development": {
+            "developmentClient": true,
+            "distribution": "internal"
+        },
+        "preview": {
+            "distribution": "internal",
+            "android": {
+                "buildType": "apk"
+            },
+            "env": {
+                "JAVA_HOME": "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home",
+                "ANDROID_HOME": "/Users/alex/Library/Android/sdk",
+                "ANDROID_NDK_HOME": "/Users/alex/Library/Android/sdk/ndk/27.1.12297006"
+            }
+        },
+        "production": {
+            "env": {
+                "JAVA_HOME": "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home",
+                "ANDROID_HOME": "/Users/alex/Library/Android/sdk",
+                "ANDROID_NDK_HOME": "/Users/alex/Library/Android/sdk/ndk/27.1.12297006"
+            }
+        }
+    },
+    "submit": {
+        "production": {}
+    }
+}
