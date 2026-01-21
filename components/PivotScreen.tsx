@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Image, Linking, Platform, Share } from 'react-native';
+import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import Animated, { useAnimatedStyle, withTiming, Easing, SlideInDown, SlideOutDown, useSharedValue, interpolate, Extrapolation, interpolateColor, SharedValue } from 'react-native-reanimated';
 import PagerView from 'react-native-pager-view';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -294,22 +295,19 @@ const styles = StyleSheet.create({
         left: 0,
         width: '100%',
         height: '100%',
-        backgroundColor: '#000', // Pitch black
+        backgroundColor: '#000',
         zIndex: 100,
     },
     pivotHeaderContainer: {
         flexDirection: 'row',
-        // paddingLeft: 20, // Now handled by parent margin
-        // marginBottom: 10,
-        gap: 20,
-        // overflow: 'hidden', // Bleed effect
+        gap: horizontalScale(20),
         alignItems: 'center',
     },
     pivotHeaderItem: {
-        fontSize: 60, // Massive font
+        fontSize: normalizeFont(60),
         fontFamily: 'OpenSans_300Light',
         fontWeight: '200',
-        lineHeight: 70,
+        lineHeight: normalizeFont(70),
         letterSpacing: -1,
     },
     page: {
@@ -320,21 +318,21 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: '#1f1f1f', // Dark grey app bar
+        backgroundColor: '#1f1f1f',
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: horizontalScale(16),
     },
     appBarButton: {
         alignItems: 'center',
         justifyContent: 'center',
-        width: 64,
-        paddingVertical: 10,
+        width: horizontalScale(64),
+        paddingVertical: verticalScale(10),
     },
     circleButton: {
-        width: 48, // Updated to 48 to match AppBar
-        height: 48, // Updated to 48 to match AppBar
-        borderRadius: 24, // Updated to 24 to match AppBar
+        width: horizontalScale(48),
+        height: horizontalScale(48),
+        borderRadius: horizontalScale(24),
         borderWidth: 2,
         borderColor: '#fff',
         alignItems: 'center',

@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, BackHandler, Pressable } from 'react-native';
 import React, { useEffect } from 'react';
 import Animated, { useAnimatedStyle, withTiming, Easing, useSharedValue, interpolate, interpolateColor } from 'react-native-reanimated';
+import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -158,12 +159,17 @@ function MetroToggle({ value, onValueChange }: { value: boolean, onValueChange: 
         progress.value = withTiming(value ? 1 : 0, { duration: 200 });
     }, [value]);
 
+    // Calculate constants outside of worklet
+    const filledWidth = horizontalScale(62);
+    const handleMaxLeft = horizontalScale(60);
+    const barHeight = verticalScale(18);
+
     // Animated fill that expands from left
     const fillStyle = useAnimatedStyle(() => {
         return {
-            width: interpolate(progress.value, [0, 1], [0, 62]), // Full width when ON
+            width: interpolate(progress.value, [0, 1], [0, filledWidth]), // Full width when ON
             backgroundColor: Colors.accent,
-            height: 18,
+            height: barHeight,
             margin: 2,
         };
     });
@@ -171,13 +177,13 @@ function MetroToggle({ value, onValueChange }: { value: boolean, onValueChange: 
     // Handle slides from left to right
     const handleStyle = useAnimatedStyle(() => {
         return {
-            left: interpolate(progress.value, [0, 1], [0, 60]), // 70 - 10 = 60
+            left: interpolate(progress.value, [0, 1], [0, handleMaxLeft]),
         };
     });
 
     return (
-        <Pressable onPress={() => onValueChange(!value)} style={{ position: 'absolute', right: 0, top: 20 }}>
-            <View style={{ flexDirection: 'row', width: 70, height: 26, borderWidth: 2, borderColor: 'white', alignItems: 'center', backgroundColor: 'black' }}>
+        <Pressable onPress={() => onValueChange(!value)} style={{ position: 'absolute', right: 0, top: verticalScale(20) }}>
+            <View style={{ flexDirection: 'row', width: horizontalScale(70), height: verticalScale(26), borderWidth: 2, borderColor: 'white', alignItems: 'center', backgroundColor: 'black' }}>
                 {/* Animated Fill for ON state */}
                 <Animated.View style={fillStyle} />
             </View>
@@ -185,7 +191,7 @@ function MetroToggle({ value, onValueChange }: { value: boolean, onValueChange: 
             {/* The Handle / White Bar - slides with fill */}
             <Animated.View style={[{
                 position: 'absolute',
-                top: -2, bottom: -2, width: 10, backgroundColor: 'white',
+                top: -2, bottom: -2, width: horizontalScale(10), backgroundColor: 'white',
             }, handleStyle]} />
         </Pressable>
     )
@@ -195,69 +201,69 @@ const styles = StyleSheet.create({
     container: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: '#000000',
-        zIndex: 80, // High z-index to cover everything
+        zIndex: 80,
     },
     header: {
-        marginBottom: 20,
-        paddingHorizontal: 20,
-        marginTop: 10,
+        marginBottom: verticalScale(20),
+        paddingHorizontal: horizontalScale(20),
+        marginTop: verticalScale(10),
     },
     appName: {
         fontFamily: 'OpenSans_600SemiBold',
-        fontSize: 12,
+        fontSize: normalizeFont(12),
         color: '#999',
         textTransform: 'uppercase',
         letterSpacing: 1,
-        marginBottom: 5,
+        marginBottom: verticalScale(5),
     },
     title: {
         fontFamily: 'OpenSans_300Light',
-        fontSize: 42,
+        fontSize: normalizeFont(42),
         color: 'white',
     },
     settingRow: {
-        marginBottom: 25,
+        marginBottom: verticalScale(25),
         position: 'relative',
-        minHeight: 50,
+        minHeight: verticalScale(50),
     },
     settingLabel: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 15,
+        fontSize: normalizeFont(15),
         color: '#999',
-        marginBottom: 2,
+        marginBottom: verticalScale(2),
     },
     settingValue: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 22,
+        fontSize: normalizeFont(22),
         color: 'white',
     },
     inputBox: {
         borderWidth: 2,
         borderColor: 'white',
-        padding: 5,
-        paddingHorizontal: 10,
-        marginTop: 5,
+        padding: verticalScale(5),
+        paddingHorizontal: horizontalScale(10),
+        marginTop: verticalScale(5),
     },
     inputText: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 16,
+        fontSize: normalizeFont(16),
         color: 'white',
     },
     button: {
         borderWidth: 2,
         borderColor: 'white',
-        paddingVertical: 8,
+        paddingVertical: verticalScale(8),
         alignItems: 'center',
-        marginTop: 30,
+        marginTop: verticalScale(30),
     },
     buttonText: {
         color: 'white',
         fontFamily: 'OpenSans_600SemiBold',
-        fontSize: 15,
+        fontSize: normalizeFont(15),
     },
     dropdownContainer: {
         position: 'absolute',
-        top: 65, // Below input box
+        top: verticalScale(65),
         left: 0,
         right: 0,
         backgroundColor: 'black',
@@ -266,7 +272,7 @@ const styles = StyleSheet.create({
         zIndex: 100,
     },
     dropdownItem: {
-        padding: 10,
+        padding: verticalScale(10),
         borderBottomWidth: 1,
         borderBottomColor: '#333',
     },
@@ -276,13 +282,13 @@ const styles = StyleSheet.create({
     dropdownText: {
         color: 'white',
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 16,
+        fontSize: normalizeFont(16),
     },
     inlineDropdown: {
         backgroundColor: 'black',
         borderWidth: 2,
         borderColor: 'white',
-        marginTop: -2, // Connect visually to input box above
-        marginBottom: 15,
+        marginTop: verticalScale(-2),
+        marginBottom: verticalScale(15),
     }
 });

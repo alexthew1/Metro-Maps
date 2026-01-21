@@ -198,6 +198,7 @@ export default function HomeScreen() {
     const [startPlace, setStartPlace] = useState<SearchResult | null>(null);
     const [navStep, setNavStep] = useState<'setup' | 'routing'>('setup');
     const [searchTarget, setSearchTarget] = useState<'destination' | 'origin'>('destination');
+    const [searchMode, setSearchMode] = useState<'explore' | 'directions'>('explore');
 
     // ...
 
@@ -215,7 +216,15 @@ export default function HomeScreen() {
             setSelectedPlace(result);
             setSearchResults([]);
             setSearchActive(false);
-            setResultsState('peek');
+
+            if (searchMode === 'directions') {
+                setNavState('expanded');
+                setNavStep('setup');
+            } else {
+                setResultsState('peek');
+            }
+
+            setSearchMode('explore'); // Reset check
             RecentsService.addRecent(result); // Track recent
         }
     };
@@ -462,6 +471,12 @@ export default function HomeScreen() {
                             setNavState('hidden'); // Hide sheet temporarily or keep it? search curtain overlays anyway
                             setSearchActive(true);
                         }}
+                        onDestinationPress={() => {
+                            setSearchTarget('destination');
+                            setSearchMode('directions');
+                            setNavState('hidden');
+                            setSearchActive(true);
+                        }}
                         onCalculateRoute={handleCalculateRoute}
                     />
 
@@ -526,7 +541,7 @@ export default function HomeScreen() {
             )}
 
             {!activeNavigation && (
-                <View style={{ position: 'absolute', bottom: 145, right: 20, zIndex: 50, opacity: appBarHidden ? 0 : 1 }} pointerEvents={appBarHidden ? 'none' : 'auto'}>
+                <View style={{ position: 'absolute', bottom: 145, right: 10, zIndex: 50, opacity: appBarHidden ? 0 : 1 }} pointerEvents={appBarHidden ? 'none' : 'auto'}>
                     <TouchableOpacity
                         onPress={() => setOptionsActive(true)}
                         activeOpacity={0.8}

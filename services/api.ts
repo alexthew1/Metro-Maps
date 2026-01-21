@@ -317,24 +317,121 @@ export const api = {
         }
     },
 
-    // Google Roads API - Speed Limits
+    // OpenStreetMap Overpass API - Speed Limits
+    // OpenStreetMap Overpass API - Speed Limits
     async getSpeedLimit(lat: number, lon: number): Promise<number | null> {
-        try {
-            // "path" parameter implies snapping, ensuring we get the road the user is ON.
-            // Using a single point as a path.
-            const url = `https://roads.googleapis.com/v1/speedLimits?path=${lat},${lon}&key=${GOOGLE_API_KEY}`;
-            const response = await fetch(url);
-            const data = await response.json();
+        // Use a wider bounding box (approx +/- 0.002 deg is ~220m)
+        const delta = 0.002;
+        const south = lat - delta;
+        const west = lon - delta;
+        const north = lat + delta;
+        const east = lon + delta;
 
-            if (data.speedLimits && data.speedLimits.length > 0) {
-                const limit = data.speedLimits[0].speedLimit; // KPH
-                return limit;
+        // Query all highways and request GEOMETRY to calculate distance
+        const query = `
+            [out:json][timeout:25];
+            way["highway"](${south},${west},${north},${east});
+            out geom;
+        `;
+
+        const servers = [
+            'https://overpass-api.de/api/interpreter',
+            'https://overpass.kumi.systems/api/interpreter',
+        ];
+
+        for (const server of servers) {
+            try {
+                const response = await fetch(server, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `data=${encodeURIComponent(query)}`,
+                });
+
+                if (!response.ok) continue;
+
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) continue;
+
+                const data = await response.json();
+
+                if (data.elements && data.elements.length > 0) {
+                    let closestWay: any = null;
+                    let minDistance = Infinity;
+
+                    // Helper to calc distance squared from point P to segment AB
+                    const getDistSqToSegment = (p: { lat: number, lon: number }, a: { lat: number, lon: number }, b: { lat: number, lon: number }) => {
+                        const x = p.lon; const y = p.lat;
+                        const x1 = a.lon; const y1 = a.lat;
+                        const x2 = b.lon; const y2 = b.lat;
+
+                        const A = x - x1;
+                        const B = y - y1;
+                        const C = x2 - x1;
+                        const D = y2 - y1;
+
+                        const dot = A * C + B * D;
+                        const len_sq = C * C + D * D;
+                        let param = -1;
+                        if (len_sq !== 0) param = dot / len_sq;
+
+                        let xx, yy;
+
+                        if (param < 0) {
+                            xx = x1; yy = y1;
+                        } else if (param > 1) {
+                            xx = x2; yy = y2;
+                        } else {
+                            xx = x1 + param * C;
+                            yy = y1 + param * D;
+                        }
+
+                        const dx = x - xx;
+                        const dy = y - yy;
+                        return dx * dx + dy * dy;
+                    };
+
+                    for (const element of data.elements) {
+                        if (!element.geometry) continue;
+
+                        // Find min dist from user to this way
+                        let wayMinDist = Infinity;
+                        for (let i = 0; i < element.geometry.length - 1; i++) {
+                            const p1 = element.geometry[i];
+                            const p2 = element.geometry[i + 1];
+                            const d = getDistSqToSegment({ lat, lon }, p1, p2);
+                            if (d < wayMinDist) wayMinDist = d;
+                        }
+
+                        if (wayMinDist < minDistance) {
+                            minDistance = wayMinDist;
+                            closestWay = element;
+                        }
+                    }
+
+                    if (closestWay) {
+                        const tags = closestWay.tags || {};
+                        const maxspeedStr = tags.maxspeed;
+
+                        // Strict check: Only return if maxspeed is explicitly defined
+                        if (maxspeedStr) {
+                            const mphMatch = maxspeedStr.match(/(\d+)\s*mph/i);
+                            if (mphMatch) {
+                                return Math.round(parseInt(mphMatch[1], 10) * 1.60934);
+                            }
+                            const kphMatch = maxspeedStr.match(/(\d+)/);
+                            if (kphMatch) {
+                                return parseInt(kphMatch[1], 10);
+                            }
+                        }
+                    }
+                }
+                return null;
+            } catch (e) {
+                // console.log('Overpass fetch error:', e);
+                continue;
             }
-            return null;
-        } catch (error) {
-            console.error('Speed Limit fetch failed:', error);
-            return null;
         }
+        return null;
     }
 };
 

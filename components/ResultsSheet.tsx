@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { BottomSheet } from './BottomSheet';
+import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
 import { SearchResult } from '../services/api';
@@ -62,8 +63,8 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
 
         const Header = (
             <View style={styles.header}>
-                <Text style={[GlobalStyles.metroXS, GlobalStyles.accentText, { marginBottom: 4 }]}>RESULT</Text>
-                <Text style={{ fontFamily: 'OpenSans_300Light', fontSize: 50, color: 'white', lineHeight: 55, letterSpacing: -1 }} numberOfLines={1}>{title}</Text>
+                <Text style={[GlobalStyles.metroXS, GlobalStyles.accentText, { marginBottom: verticalScale(4) }]}>RESULT</Text>
+                <Text style={{ fontFamily: 'OpenSans_300Light', fontSize: normalizeFont(50), color: 'white', lineHeight: normalizeFont(55), letterSpacing: -1 }} numberOfLines={1}>{title}</Text>
                 <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText]} numberOfLines={1}>
                     {distanceText ? `${distanceText} • ` : ''}{subtitle}
                 </Text>
@@ -71,8 +72,8 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
         );
 
         return (
-            <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header} peekHeight={140}>
-                <View style={[styles.content, { paddingBottom: insets.bottom + 20 }]}>
+            <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header} peekHeight={verticalScale(140)}>
+                <View style={[styles.content, { paddingBottom: insets.bottom + verticalScale(20) }]}>
                     <View style={styles.row}>
                         <Text style={GlobalStyles.dimText}>Address: </Text>
                         <Text style={GlobalStyles.metroMD}>{selectedPlace.display_name}</Text>
@@ -93,15 +94,15 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
     // LIST VIEW
     const Header = (
         <View style={styles.header}>
-            <Text style={[GlobalStyles.metroXS, GlobalStyles.accentText, { marginBottom: 4 }]}>SEARCH RESULTS</Text>
-            <Text style={{ fontFamily: 'OpenSans_300Light', fontSize: 50, color: 'white', lineHeight: 55, letterSpacing: -1 }}>{results.length} places found</Text>
+            <Text style={[GlobalStyles.metroXS, GlobalStyles.accentText, { marginBottom: verticalScale(4) }]}>SEARCH RESULTS</Text>
+            <Text style={{ fontFamily: 'OpenSans_300Light', fontSize: normalizeFont(50), color: 'white', lineHeight: normalizeFont(55), letterSpacing: -1 }}>{results.length} places found</Text>
         </View>
     );
 
     return (
-        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header} peekHeight={135}>
+        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={Header} peekHeight={verticalScale(135)}>
             <FlatList
-                contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+                contentContainerStyle={{ paddingBottom: insets.bottom + verticalScale(20) }}
                 data={results}
                 keyExtractor={item => item.place_id.toString()}
                 renderItem={({ item }) => {
@@ -118,11 +119,11 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
                     return (
                         <TouchableOpacity style={styles.listItem} onPress={() => onPlaceSelect && onPlaceSelect(item)}>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <Text style={[GlobalStyles.metroMD, { marginBottom: 2, flex: 1 }]} numberOfLines={1}>
+                                <Text style={[GlobalStyles.metroMD, { marginBottom: verticalScale(2), flex: 1 }]} numberOfLines={1}>
                                     {item.display_name.split(',')[0]}
                                 </Text>
                                 {distanceText && (
-                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.accentText, { marginLeft: 10 }]}>
+                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.accentText, { marginLeft: horizontalScale(10) }]}>
                                         {distanceText}
                                     </Text>
                                 )}
@@ -140,27 +141,27 @@ export function ResultsSheet({ results = [], selectedPlace, state, onStateChange
 
 const styles = StyleSheet.create({
     header: {
-        padding: 20,
+        padding: horizontalScale(20),
         backgroundColor: 'black',
         borderBottomWidth: 1,
         borderBottomColor: '#333'
     },
     content: {
-        padding: 20,
+        padding: horizontalScale(20),
     },
     row: {
-        marginBottom: 20,
+        marginBottom: verticalScale(20),
     },
     button: {
         borderWidth: 2,
         borderColor: 'white',
-        paddingVertical: 8,
-        paddingHorizontal: 20,
-        marginTop: 10,
+        paddingVertical: verticalScale(8),
+        paddingHorizontal: horizontalScale(20),
+        marginTop: verticalScale(10),
         alignSelf: 'flex-start',
     },
     listItem: {
-        padding: 20,
+        padding: horizontalScale(20),
         borderBottomWidth: 1,
         borderBottomColor: '#222'
     }

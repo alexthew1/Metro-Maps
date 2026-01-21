@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image as RNImage, Platform, D
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
+import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { RouteResult, api } from '../services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MetroButton } from './MetroButton';
@@ -75,9 +76,17 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         height: sheetHeight.value,
     }));
 
-    const recenterButtonStyle = useAnimatedStyle(() => ({
-        bottom: sheetHeight.value + 5 + insets.bottom, // 5px above the bottom bar
-    }));
+    // -- CONSTANTS --
+    const FAB_SIZE = horizontalScale(50);
+    const FAB_MARGIN = 25; // Gap between dashboard and button
+
+    const recenterButtonStyle = useAnimatedStyle(() => {
+        // The dashboard's visually occupied height from bottom depends on its content
+        // BUT here we are simply placing the button above the calculated sheet height + safe area
+        return {
+            bottom: sheetHeight.value + insets.bottom + FAB_MARGIN,
+        };
+    });
 
     // -- REFS --
     const lastSpokenIndex = React.useRef<number>(-1);
@@ -96,6 +105,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                 setStepIndex(0);
                 setIsRecalculating(false);
                 lastSpokenIndex.current = -1;
+                lastSpokenText.current = '';
                 routeIdRef.current = newId;
                 minDistRef.current = Infinity;
                 hasArrivedRef.current = false;
@@ -142,7 +152,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
             }
             const devMeters = Math.sqrt(minDistSq) * 111320;
 
-            if (devMeters > 60) {
+            if (devMeters > 100) {
                 console.log(`[Nav] Off-route (${Math.round(devMeters)}m). Recalculating...`);
                 setIsRecalculating(true);
                 lastRecalcTime.current = now;
@@ -154,7 +164,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         }
 
         if (nextManeuver.maneuver.type === 'arrive') {
-            // Arrive within 80m (approx 260ft) or 30m (100ft) as requested. 
+            // Arrive within 80m (approx 260ft) or 30m (100ft)
             // Using 80m as the threshold to be safe and responsive.
             if (dist < 80) {
                 if (!hasArrivedRef.current) {
@@ -180,27 +190,51 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     }, [userLocation, route, stepIndex, nextManeuver, isRecalculating]);
 
     // -- 3. VOICE LOOP --
+    const lastSpokenText = React.useRef<string>('');
+
     React.useEffect(() => {
         if (isRecalculating || !nextManeuver?.name) return;
+
+        // Check if we should speak this step
         if (stepIndex !== lastSpokenIndex.current && !hasArrivedRef.current) {
             const textToSpeak = nextManeuver.name;
-            Speech.stop();
-            Speech.speak(textToSpeak, {
-                language: 'en',
-                pitch: 1.0,
-                rate: 0.9,
-            });
+            const distMeters = distanceToNext;
+            const distFeet = distMeters * 3.28084;
+
+            // Logic:
+            // 1. If it's a NEW instruction (text changed), speak it.
+            // 2. If it's the SAME instruction (recalc or distance update), only speak if < 300 ft.
+
+            const isNewText = textToSpeak !== lastSpokenText.current;
+            const isCloseEnough = distFeet < 300;
+
+            if (isNewText || isCloseEnough) {
+                Speech.stop();
+                Speech.speak(textToSpeak, {
+                    language: 'en',
+                    pitch: 1.0,
+                    rate: 0.9,
+                });
+                lastSpokenText.current = textToSpeak;
+            } else {
+                console.log(`[NavVoice] Skipping redundant voice: "${textToSpeak}" is same as last, and dist ${Math.round(distFeet)}ft > 300ft`);
+            }
+
+            // Always update the index so we don't keep trying this frame
             lastSpokenIndex.current = stepIndex;
         }
     }, [stepIndex, isRecalculating, nextManeuver]);
 
     // -- 3.5 SPEED LIMIT LOOP --
     React.useEffect(() => {
-        if (!userLocation) return;
+        if (!userLocation) {
+            // console.log('Waiting for user location for speed limit...');
+            return;
+        }
 
         const now = Date.now();
-        // Throttle: fetch every 20 seconds to save API quota
-        if (now - lastSpeedFetchTime.current > 20000) {
+        // Throttle: fetch every 15 seconds (slightly more frequent for bbox)
+        if (now - lastSpeedFetchTime.current > 15000) {
             lastSpeedFetchTime.current = now;
 
             api.getSpeedLimit(userLocation.latitude, userLocation.longitude)
@@ -208,9 +242,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                     if (limitKph) {
                         setCurrentSpeedLimit(limitKph);
                     } else if (stepIndex === 0 && route.coordinates && route.coordinates.length > 0) {
-                        // Fallback: If at start and no limit found (e.g. in driveway), 
-                        // check the route's starting point (the street).
-                        console.log('Fetching fallback speed limit for route start...');
+                        // Fallback logic
                         const startPoint = route.coordinates[0];
                         const fallbackLimit = await api.getSpeedLimit(startPoint.latitude, startPoint.longitude);
                         setCurrentSpeedLimit(fallbackLimit);
@@ -245,20 +277,13 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
             : `${Math.round(distanceToNext)} m`;
     }
 
-    const durationMin = Math.round(route.duration / 60); // This is total duration, ideally should be remaining duration
-    // Approximate remaining duration based on % distance?
-    // Precise way: we'd need to sum up remaining steps.
-    // Hacky way: (distanceToNext + remainingStepsDistance) / avgSpeed
-    // Simple way: (Total Route Dist - (Total Route Dist - Remaining))
-    // Let's just use original duration - (elapsed)? No.
-    // Let's just show total duration for now as a "Time to go" placeholder or implement logic later.
-    // Better: route.duration is static. We need dynamic.
-    // Let's assume average speed 30mph (~13m/s).
-    // Remaining dist = route.distance - (distance traveled). Hard to track distance traveled accurately without path projection.
-    // Let's just use (Total Distance / Estimated Speed) on every frame? No.
-    // Let's statically fall back to original ETA... or simplistic (totalDist / 13.4) seconds.
-    // Actually, let's just stick to the static route.duration for now, or maybe decrement it?
-    // We'll leave it as is.
+    const durationMin = Math.round(route.duration / 60);
+    let timeDisplay = `${durationMin}`;
+    if (durationMin >= 60) {
+        const hrs = Math.floor(durationMin / 60);
+        const mins = durationMin % 60;
+        timeDisplay = `${hrs}h ${mins}`;
+    }
 
     // Speed
     const currentSpeedMps = userLocation.speed || 0;
@@ -297,13 +322,16 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
 
             {/* Floating Re-Center Button */}
             {!isFollowing && (
-                <Animated.View style={[{ position: 'absolute', right: 10, zIndex: 200 }, recenterButtonStyle]}>
+                <Animated.View style={[
+                    styles.fabContainer,
+                    recenterButtonStyle
+                ]}>
                     <TouchableOpacity
                         onPress={onRecenter}
                         activeOpacity={0.8}
-                        style={styles.floatingBtn}
+                        style={[styles.fabButton, { width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2 }]}
                     >
-                        <MaterialCommunityIcons name="crosshairs-gps" size={28} color="white" />
+                        <MaterialCommunityIcons name="crosshairs-gps" size={normalizeFont(28)} color="white" />
                     </TouchableOpacity>
                 </Animated.View>
             )}
@@ -333,7 +361,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
 
                         {/* Time Remaining */}
                         <View style={{ alignItems: 'flex-start' }}>
-                            <Text style={styles.dashValue}>{durationMin}</Text>
+                            <Text style={styles.dashValue}>{timeDisplay}</Text>
                             <Text style={styles.dashLabel}>min</Text>
                         </View>
 
@@ -406,15 +434,15 @@ const styles = StyleSheet.create({
     container: {
         position: 'absolute',
         top: 0, left: 0, right: 0, bottom: 0,
-        justifyContent: 'space-between', // Top bar at top, dashboard at bottom
+        justifyContent: 'space-between',
         zIndex: 100,
         pointerEvents: 'box-none',
         flexDirection: 'column',
     },
     topBar: {
-        backgroundColor: '#1a1a3e', // Dark Navy Blue (Nokia Maps)
-        paddingVertical: 15,
-        paddingHorizontal: 20,
+        backgroundColor: '#1a1a3e',
+        paddingVertical: verticalScale(15),
+        paddingHorizontal: horizontalScale(20),
         width: '100%',
         elevation: 5,
         flexDirection: 'row',
@@ -422,13 +450,13 @@ const styles = StyleSheet.create({
     },
     maneuverText: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 26,
+        fontSize: normalizeFont(26),
         color: 'white',
-        lineHeight: 30,
+        lineHeight: normalizeFont(30),
     },
     maneuverDist: {
         fontFamily: 'OpenSans_700Bold',
-        fontSize: 32,
+        fontSize: normalizeFont(32),
         color: 'white',
         marginTop: 0,
     },
@@ -436,35 +464,35 @@ const styles = StyleSheet.create({
         backgroundColor: 'black',
         flexDirection: 'column',
         alignItems: 'stretch',
-        paddingHorizontal: 20,
-        paddingTop: 15,
-        paddingBottom: 15,
+        paddingHorizontal: horizontalScale(20),
+        paddingTop: verticalScale(15),
+        paddingBottom: verticalScale(15),
         width: '100%',
-        minHeight: 100,
+        minHeight: verticalScale(100),
     },
     dashSection: {
         alignItems: 'flex-start',
     },
     dashValueLarge: {
         fontFamily: 'OpenSans_300Light',
-        fontSize: 48,
+        fontSize: normalizeFont(48),
         color: 'white',
-        lineHeight: 54,
+        lineHeight: normalizeFont(54),
     },
     dashValue: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 28, // Slightly smaller to fit stacked if needed, or keep 32
+        fontSize: normalizeFont(28),
         color: 'white',
     },
     dashLabel: {
         fontFamily: 'OpenSans_300Light',
-        fontSize: 14,
+        fontSize: normalizeFont(14),
         color: '#aaa',
-        marginTop: -4,
+        marginTop: verticalScale(-4),
     },
     speedLimitBox: {
-        width: 32, height: 32,
-        borderRadius: 16,
+        width: horizontalScale(32), height: horizontalScale(32),
+        borderRadius: horizontalScale(16),
         borderWidth: 2,
         borderColor: '#d55',
         backgroundColor: 'white',
@@ -472,14 +500,25 @@ const styles = StyleSheet.create({
     },
     speedLimitText: {
         color: 'black',
-        fontSize: 14,
-        fontFamily: 'OpenSans_700Bold', // Bold for visibility
+        fontSize: normalizeFont(14),
+        fontFamily: 'OpenSans_700Bold',
     },
-    floatingBtn: {
-        width: 50, height: 50,
-        borderRadius: 25,
-        backgroundColor: 'rgba(34, 34, 34, 0.6)',
-        justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: '#444',
+    fabContainer: {
+        position: 'absolute',
+        right: 0,
+        paddingRight: 10,
+        zIndex: 200,
+    },
+    fabButton: {
+        backgroundColor: 'rgba(30, 30, 30, 0.85)', // Darker, more opaque
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#555',
+        elevation: 4,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
     }
 });

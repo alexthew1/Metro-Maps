@@ -5,6 +5,8 @@ import { Colors } from '../constants/Colors';
 import { RouteResult, SearchResult } from '../services/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Svg, Path, Circle } from 'react-native-svg';
+import { horizontalScale } from '../utils/responsive';
 
 // Metro/Here Maps Desaturated Style
 // Metro/Here Maps Desaturated Style (User Provided + Business Labels)
@@ -355,15 +357,14 @@ interface MapLayerProps {
 
 export function MapLayer({ userLocation, destination, results = [], route, mapType = 'standard', showLabels = true, showsBuildings = true, showZoomControls = false, showUserLocation = true, onMapPress, onPinPress, cameraTrigger, onRegionChange, cameraMode = 'default', isFollowing = true, onFollowChange, onHeadingChange, initialRegion }: MapLayerProps) {
     // Determine effective map type for Satellite/Hybrid switch
-    const effectiveMapType = mapType === 'satellite'
-        ? (showLabels ? 'hybrid' : 'satellite')
-        : 'standard';
+    // User requested "all labels" for satellite, so we force 'hybrid'
+    const effectiveMapType = mapType === 'satellite' ? 'hybrid' : 'standard';
 
     // Toggle Labels for Standard Map
     // We append a rule to hide all labels if showLabels is false
-    const effectiveMapStyle = mapType === 'standard'
-        ? (showLabels ? MAP_STYLE : [...MAP_STYLE, { "elementType": "labels", "stylers": [{ "visibility": "off" }] }])
-        : [];
+    const effectiveMapStyle = showLabels
+        ? MAP_STYLE
+        : [...MAP_STYLE, { "elementType": "labels", "stylers": [{ "visibility": "off" }] }];
     // ...
     // Camera Change Handler
     const handleRegionChange = (region: any, details?: any) => {
@@ -558,18 +559,35 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
 
         // --- SNAPPING CALCULATION ---
         let snapCandidate = route.coordinates[closestIndex];
-        const segments: { latitude: number; longitude: number }[][] = [];
-        if (closestIndex > 0) segments.push([route.coordinates[closestIndex - 1], route.coordinates[closestIndex]]);
-        if (closestIndex < route.coordinates.length - 1) segments.push([route.coordinates[closestIndex], route.coordinates[closestIndex + 1]]);
+        let nextIndex = closestIndex; // Default to starting from closest (will verify below)
+
+        // Determine which segment is best and what the "next" index should be
+        const segments: { p1: any, p2: any, nextIdx: number }[] = [];
+
+        if (closestIndex > 0) {
+            segments.push({
+                p1: route.coordinates[closestIndex - 1],
+                p2: route.coordinates[closestIndex],
+                nextIdx: closestIndex
+            });
+        }
+        if (closestIndex < route.coordinates.length - 1) {
+            segments.push({
+                p1: route.coordinates[closestIndex],
+                p2: route.coordinates[closestIndex + 1],
+                nextIdx: closestIndex + 1
+            });
+        }
 
         let bestSnapDist = Infinity;
 
         segments.forEach(seg => {
-            const p = getProjectedPoint(userLocation, seg[0], seg[1]);
+            const p = getProjectedPoint(userLocation, seg.p1, seg.p2);
             const d = getDistSq(userLocation, p);
             if (d < bestSnapDist) {
                 bestSnapDist = d;
                 snapCandidate = p;
+                nextIndex = seg.nextIdx;
             }
         });
 
@@ -577,8 +595,8 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
         const SNAP_THRESHOLD_SQ = 0.0003 * 0.0003;
         const snapped = bestSnapDist < SNAP_THRESHOLD_SQ ? snapCandidate : null;
 
-        // Trimming (Visual) - start from closest point
-        const remaining = route.coordinates.slice(closestIndex);
+        // Trimming (Visual) - start from the NEXT vertex after our snap segment
+        const remaining = route.coordinates.slice(nextIndex);
         const coords = snapped ? [snapped, ...remaining] : remaining;
 
         return { displayCoordinates: coords, computedSnappedLocation: snapped };
@@ -665,41 +683,50 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                     </>
                 )}
 
-                {/* Route Line */}
+                {/* Route Line - Single Polyline for Performance (OOM Fix) */}
                 {route && displayCoordinates.length > 0 && (
                     <Polyline
                         key={`route-line-${displayCoordinates.length}`}
                         coordinates={displayCoordinates}
-                        strokeColor={Colors.accent}
-                        strokeWidth={5}
+                        strokeColor="#4A90E2"
+                        strokeWidth={horizontalScale(10)}
                         lineCap="round"
                         lineJoin="round"
+                        zIndex={995}
                     />
                 )}
 
-                {/* Custom Navigation Puck (When Navigating) */}
+                {/* Custom Navigation Puck (Green Arrow) */}
                 {cameraMode === 'navigation' && userLocation && (
                     <Marker
                         coordinate={snappedLocation || userLocation}
                         anchor={{ x: 0.5, y: 0.5 }}
-                        flat={true} // Rotate with map
+                        flat={true} // Stays flat on map
                         zIndex={999}
                     >
-                        {/* Simple Chevron Puck */}
+                        {/* SVG Green Arrow with White Border */}
                         <View style={{
-                            width: 24, height: 24,
-                            borderRadius: 12, backgroundColor: 'white',
-                            borderWidth: 3, borderColor: 'white',
-                            alignItems: 'center', justifyContent: 'center',
-                            shadowColor: 'black', shadowRadius: 2, shadowOpacity: 0.3, elevation: 3
+                            width: horizontalScale(40),
+                            height: horizontalScale(40),
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transform: [{ rotate: `${(userLocation.heading || 0)}deg` }]
                         }}>
-                            <View style={{
-                                width: 16, height: 16, borderRadius: 8, backgroundColor: Colors.accent,
-                                transform: [{ rotate: `${(userLocation.heading || 0)}deg` }] // Rotate inner arrow? Or Marker handles flat?
-                                // If flat=true, the Marker view rotates with the map. 
-                                // But the Marker needs to represent HEADING. 
-                                // If flat=true, 'rotation' prop on Marker controls orientation relative to NORTH.
-                            }} />
+                            <Svg width={horizontalScale(40)} height={horizontalScale(40)} viewBox="-20 -20 140 140">
+                                {/* White Border/Stroke Background */}
+                                <Path
+                                    d="M50 0 L100 100 L50 80 L0 100 Z"
+                                    fill="white"
+                                    stroke="white"
+                                    strokeWidth="6"
+                                    strokeLinejoin="round"
+                                />
+                                {/* Green Arrow */}
+                                <Path
+                                    d="M50 8 L92 92 L50 75 L8 92 Z"
+                                    fill="#4CC417" // Bright Green
+                                />
+                            </Svg>
                         </View>
                     </Marker>
                 )}

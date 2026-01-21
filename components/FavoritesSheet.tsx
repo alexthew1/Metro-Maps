@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming, Easing, useSharedValue, interpolateColor, SharedValue } from 'react-native-reanimated';
 import PagerView from 'react-native-pager-view';
+import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { BottomSheet } from './BottomSheet';
 import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
@@ -172,8 +173,11 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
     const activeTabIndex = activeTab === 'favorites' ? 0 : 1;
     const pivotOffset = useSharedValue(0);
 
+    // Pivot item width approx 180 (depends on font size). Let's use scale.
+    // "favorites" is long, "recent" is shorter.
+    // We should probably rely on onLayout, but for now scaling the translation is better than fixed.
     useEffect(() => {
-        pivotOffset.value = withTiming(-activeTabIndex * 180, { duration: 350, easing: Easing.out(Easing.cubic) });
+        pivotOffset.value = withTiming(-activeTabIndex * horizontalScale(180), { duration: 350, easing: Easing.out(Easing.cubic) });
     }, [activeTabIndex]);
 
     const pivotAnimatedStyle = useAnimatedStyle(() => {
@@ -194,8 +198,8 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
 
     const Header = useMemo(() => (
         <View style={[styles.headerContainer, { overflow: 'hidden' }]}>
-            <Text style={[styles.overline, { marginBottom: 8, marginHorizontal: 20 }]}>MY PLACES</Text>
-            <View style={{ height: 70, marginBottom: 0, marginLeft: 20 }}>
+            <Text style={[styles.overline, { marginBottom: verticalScale(8), marginHorizontal: horizontalScale(20) }]}>MY PLACES</Text>
+            <View style={{ height: verticalScale(70), marginBottom: 0, marginLeft: horizontalScale(20) }}>
                 <Animated.View style={[styles.pivotRow, pivotAnimatedStyle]}>
                     <AnimatedFavPivotItem
                         isActive={activeTab === 'favorites'}
@@ -265,12 +269,12 @@ const styles = StyleSheet.create({
         zIndex: 100,
     },
     headerContainer: {
-        paddingTop: 20,
-        marginBottom: 10,
+        paddingTop: verticalScale(20),
+        marginBottom: verticalScale(10),
     },
     overline: {
         fontFamily: 'OpenSans_700Bold',
-        fontSize: 14,
+        fontSize: normalizeFont(14),
         letterSpacing: 1,
         color: 'white',
         marginBottom: 0,
@@ -279,12 +283,12 @@ const styles = StyleSheet.create({
     pivotRow: {
         flexDirection: 'row',
         alignItems: 'baseline',
-        gap: 20,
+        gap: horizontalScale(20),
     },
     pivotTitle: {
         fontFamily: 'OpenSans_300Light',
-        fontSize: 60,
-        lineHeight: 70,
+        fontSize: normalizeFont(60),
+        lineHeight: normalizeFont(70),
         letterSpacing: -1,
         color: 'white',
     },
@@ -293,46 +297,46 @@ const styles = StyleSheet.create({
     },
     pivotInactive: {
         color: '#666',
-        fontSize: 60,
-        lineHeight: 70,
+        fontSize: normalizeFont(60),
+        lineHeight: normalizeFont(70),
         fontFamily: 'OpenSans_300Light',
     },
     listContent: {
-        padding: 20,
-        paddingBottom: 100,
+        padding: horizontalScale(20),
+        paddingBottom: verticalScale(100),
     },
     separator: {
-        height: 1, backgroundColor: '#222', marginVertical: 10,
+        height: 1, backgroundColor: '#222', marginVertical: verticalScale(10),
     },
     itemContainer: {
-        minHeight: 70, // Bit taller for Nokia feel
+        minHeight: verticalScale(70), // Bit taller for Nokia feel
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 5,
+        paddingVertical: verticalScale(5),
     },
     itemTitle: {
         fontFamily: 'OpenSans_600SemiBold', // Slightly bolder for title
-        fontSize: 22,
+        fontSize: normalizeFont(22),
         color: 'white',
-        marginBottom: 4,
+        marginBottom: verticalScale(4),
     },
     itemSubtitle: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 14,
+        fontSize: normalizeFont(14),
         color: Colors.accent, // Metro Blue for subtitle/address often used in Nokia Maps
     },
     editContainer: {
         flex: 1,
         flexDirection: 'column',
-        gap: 15,
-        paddingVertical: 10,
+        gap: verticalScale(15),
+        paddingVertical: verticalScale(10),
     },
     metroInput: {
         backgroundColor: '#000',
         color: 'white',
-        padding: 12,
-        fontSize: 18,
+        padding: verticalScale(12),
+        fontSize: normalizeFont(18),
         fontFamily: 'OpenSans_400Regular',
         borderWidth: 2,
         borderColor: 'white', // High contrast border
@@ -342,19 +346,19 @@ const styles = StyleSheet.create({
         padding: 5,
         backgroundColor: '#333', // Slight background for hit target
         borderRadius: 20, // Circular touch target visual
-        width: 40, height: 40,
+        width: horizontalScale(40), height: horizontalScale(40),
         alignItems: 'center', justifyContent: 'center',
     },
     emptyState: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingTop: 100,
+        paddingTop: verticalScale(100),
     },
     emptyText: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 18,
+        fontSize: normalizeFont(18),
         color: '#666',
-        marginTop: 20,
+        marginTop: verticalScale(20),
     }
 });

@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import React, { useEffect } from 'react';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AboutSheetProps {
@@ -55,7 +56,7 @@ export function AboutSheet({ visible, onClose }: AboutSheetProps) {
                     <Text style={styles.value}>MIT License</Text>
                 </View>
 
-                <View style={[styles.infoRow, { marginTop: 30 }]}>
+                <View style={[styles.infoRow, { marginTop: verticalScale(30) }]}>
                     <Text style={styles.description}>
                         MetroMaps is a Windows Phone inspired mapping application bringing the classic Metro design language to modern devices.
                     </Text>
@@ -76,59 +77,59 @@ const styles = StyleSheet.create({
         zIndex: 80,
     },
     header: {
-        marginBottom: 30,
-        paddingHorizontal: 20,
-        marginTop: 10,
+        marginBottom: verticalScale(30),
+        paddingHorizontal: horizontalScale(20),
+        marginTop: verticalScale(10),
     },
     appName: {
         fontFamily: 'OpenSans_600SemiBold',
-        fontSize: 12,
+        fontSize: normalizeFont(12),
         color: '#999',
         textTransform: 'uppercase',
         letterSpacing: 1,
-        marginBottom: 5,
+        marginBottom: verticalScale(5),
     },
     title: {
         fontFamily: 'OpenSans_300Light',
-        fontSize: 42,
+        fontSize: normalizeFont(42),
         color: 'white',
     },
     content: {
-        paddingHorizontal: 20,
+        paddingHorizontal: horizontalScale(20),
     },
     infoRow: {
-        marginBottom: 20,
+        marginBottom: verticalScale(20),
     },
     label: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 14,
+        fontSize: normalizeFont(14),
         color: '#999',
-        marginBottom: 4,
+        marginBottom: verticalScale(4),
     },
     value: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 24,
+        fontSize: normalizeFont(24),
         color: 'white',
     },
     description: {
         fontFamily: 'OpenSans_400Regular',
-        fontSize: 14,
+        fontSize: normalizeFont(14),
         color: '#999',
-        lineHeight: 22,
+        lineHeight: normalizeFont(22),
     },
     backButton: {
         position: 'absolute',
         bottom: 0,
-        left: 20,
-        right: 20,
+        left: horizontalScale(20),
+        right: horizontalScale(20),
         borderWidth: 2,
         borderColor: 'white',
-        paddingVertical: 12,
+        paddingVertical: verticalScale(12),
         alignItems: 'center',
     },
     backButtonText: {
         color: 'white',
         fontFamily: 'OpenSans_600SemiBold',
-        fontSize: 16,
+        fontSize: normalizeFont(16),
     }
 });
