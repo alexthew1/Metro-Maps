@@ -1,5 +1,9 @@
 {
   "name": "metromaps8.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexthew1/Metro-Maps.git"
+  },
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
