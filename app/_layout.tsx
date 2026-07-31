@@ -3,7 +3,10 @@ import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { View, Platform, StatusBar, StyleSheet } from 'react-native';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SetupScreen } from '../components/SetupScreen';
+import { setGoogleApiKey } from '../services/api';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -52,6 +55,25 @@ export default function RootLayout() {
         OpenSans_600SemiBold,
         OpenSans_700Bold,
     });
+    const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        async function checkApiKey() {
+            try {
+                const storedKey = await AsyncStorage.getItem('USER_GOOGLE_API_KEY');
+                const restrictedKey = process.env.EXPO_PUBLIC_RESTRICTED_API_KEY;
+                if (storedKey && (!restrictedKey || storedKey !== restrictedKey)) {
+                    setGoogleApiKey(storedKey);
+                    setHasApiKey(true);
+                } else {
+                    setHasApiKey(false);
+                }
+            } catch (e) {
+                setHasApiKey(false);
+            }
+        }
+        checkApiKey();
+    }, []);
 
     useEffect(() => {
         // Lock to portrait
@@ -72,7 +94,7 @@ export default function RootLayout() {
         }
     }, [fontsLoaded]);
 
-    if (!fontsLoaded) {
+    if (!fontsLoaded || hasApiKey === null) {
         return null;
     }
 
@@ -84,9 +106,13 @@ export default function RootLayout() {
                     <NavigationBarBackground />
                     <ExpoStatusBar style="light" />
 
-                    <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
-                        <Stack.Screen name="index" />
-                    </Stack>
+                    {!hasApiKey ? (
+                        <SetupScreen onComplete={() => setHasApiKey(true)} />
+                    ) : (
+                        <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
+                            <Stack.Screen name="index" />
+                        </Stack>
+                    )}
                 </View>
             </ErrorBoundary>
         </GestureHandlerRootView>
