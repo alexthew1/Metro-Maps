@@ -55,7 +55,7 @@ export default {
             ],
             config: {
                 googleMaps: {
-                    apiKey: process.env.GOOGLE_MAPS_API_KEY || ""
+                    apiKey: process.env.EXPO_PUBLIC_RESTRICTED_API_KEY || ""
                 }
             }
         },
@@ -64,8 +64,8 @@ export default {
             eas: {
                 projectId: "b469ad27-1d33-414f-9884-55427dd59992"
             },
-            // Expose API key to app via expo-constants
-            googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY
+            // Expose API key to app via expo-constants ONLY in development
+            googleMapsApiKey: process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' ? process.env.EXPO_PUBLIC_RESTRICTED_API_KEY : ""
         },
         owner: "alexthews-organization"
     }
