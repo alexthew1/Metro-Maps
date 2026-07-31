@@ -43,7 +43,7 @@ export function AboutSheet({ visible, onClose }: AboutSheetProps) {
             <View style={styles.content}>
                 <View style={styles.infoRow}>
                     <Text style={styles.label}>Version</Text>
-                    <Text style={styles.value}>1.3</Text>
+                    <Text style={styles.value}>1.4</Text>
                 </View>
 
                 <View style={styles.infoRow}>
