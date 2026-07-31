@@ -35,6 +35,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     const [dashboardExpanded, setDashboardExpanded] = React.useState(false);
     const [currentSpeedLimit, setCurrentSpeedLimit] = React.useState<number | null>(null);
 
+
     // -- ANIMATED SHEET --
     const PEEK_HEIGHT = 100;
     const EXPANDED_HEIGHT = 180;
@@ -105,7 +106,6 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                 setStepIndex(0);
                 setIsRecalculating(false);
                 lastSpokenIndex.current = -1;
-                lastSpokenText.current = '';
                 routeIdRef.current = newId;
                 minDistRef.current = Infinity;
                 hasArrivedRef.current = false;
@@ -141,8 +141,9 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         const currentSpeedMps = userLocation.speed || 0;
         const isMoving = currentSpeedMps > 2.2; // ~5mph threshold, only recalculate when actually driving
 
-        if (isMoving && now - lastRecalcTime.current > 10000 && route.coordinates && route.coordinates.length > 5) {
+        if (route.coordinates && route.coordinates.length > 5) {
             let minDistSq = Infinity;
+            // Sample points to find closest distance to route
             for (let i = 0; i < route.coordinates.length; i += 2) {
                 const p = route.coordinates[i];
                 const dLat = p.latitude - userLocation.latitude;
@@ -152,31 +153,37 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
             }
             const devMeters = Math.sqrt(minDistSq) * 111320;
 
-            if (devMeters > 100) {
-                console.log(`[Nav] Off-route (${Math.round(devMeters)}m). Recalculating...`);
-                setIsRecalculating(true);
-                lastRecalcTime.current = now;
-                Speech.stop();
-                Speech.speak("Recalculating...");
-                onRecalculate();
-                return;
-            }
+            // Removed auto-recalculation because point-to-node distance is inaccurate for sparse polylines
+            // and causes endless "Recalculating..." loops.
         }
 
         if (nextManeuver.maneuver.type === 'arrive') {
-            // Arrive within 80m (approx 260ft) or 30m (100ft)
-            // Using 80m as the threshold to be safe and responsive.
-            if (dist < 80) {
+            // Arrive within 150m (approx 500ft) - generous threshold because sometimes the route coordinate is in the center of a large building
+            if (dist < 150) {
                 if (!hasArrivedRef.current) {
                     hasArrivedRef.current = true;
                     Speech.stop();
                     Speech.speak("You have arrived at your destination");
-                    onStopConfig();
+                    
+                    // Give the user 5 seconds to hear the message and realize they've arrived 
+                    // before abruptly returning to the default map.
+                    setTimeout(() => {
+                        onStopConfig();
+                    }, 5000);
                 }
             }
         } else {
-            if (minDistRef.current < 20 && dist > 25 && stepIndex < route.maneuvers.length - 1) {
-                setStepIndex(prev => prev + 1);
+            // Advance maneuver if we get close and then distance increases, OR if we are closer to the NEXT turn
+            const nextNextManeuver = route.maneuvers[Math.min(displayIndex + 1, route.maneuvers.length - 1)];
+            const distToNextNext = nextNextManeuver ? getDistance(userLocation.latitude, userLocation.longitude, nextNextManeuver.maneuver.location[1], nextNextManeuver.maneuver.location[0]) : Infinity;
+
+            if (
+                (minDistRef.current < 150 && dist > minDistRef.current + 30) || 
+                (distToNextNext < dist && dist < 1000)
+            ) {
+                if (stepIndex < route.maneuvers.length - 1) {
+                    setStepIndex(prev => prev + 1);
+                }
             }
         }
 
@@ -190,40 +197,88 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     }, [userLocation, route, stepIndex, nextManeuver, isRecalculating]);
 
     // -- 3. VOICE LOOP --
-    const lastSpokenText = React.useRef<string>('');
+    const spokenTriggersRef = React.useRef(new Set<string>());
+    const lastSpokenManeuverRef = React.useRef<string | null>(null);
 
     React.useEffect(() => {
-        if (isRecalculating || !nextManeuver?.name) return;
+        spokenTriggersRef.current.clear();
+    }, [stepIndex]);
 
-        // Check if we should speak this step
-        if (stepIndex !== lastSpokenIndex.current && !hasArrivedRef.current) {
-            const textToSpeak = nextManeuver.name;
-            const distMeters = distanceToNext;
-            const distFeet = distMeters * 3.28084;
+    // Handle recalculation alert
+    const wasRecalculatingRef = React.useRef(isRecalculating);
+    React.useEffect(() => {
+        if (!wasRecalculatingRef.current && isRecalculating) {
+            Speech.stop();
+            Speech.speak("Recalculating route.", { language: 'en', rate: 0.9 });
+        }
+        wasRecalculatingRef.current = isRecalculating;
+    }, [isRecalculating]);
 
-            // Logic:
-            // 1. If it's a NEW instruction (text changed), speak it.
-            // 2. If it's the SAME instruction (recalc or distance update), only speak if < 300 ft.
+    React.useEffect(() => {
+        if (isRecalculating || !nextManeuver?.name || hasArrivedRef.current) return;
 
-            const isNewText = textToSpeak !== lastSpokenText.current;
-            const isCloseEnough = distFeet < 300;
+        const distFeet = distanceToNext * 3.28084;
+        const distMiles = distFeet / 5280;
+        let textToSpeak = nextManeuver.name.replace(/<[^>]*>?/gm, ''); // strip HTML
 
-            if (isNewText || isCloseEnough) {
+        // Avoid saying "Continue on X" repeatedly if we are just driving straight for miles.
+        const isContinue = textToSpeak.toLowerCase().includes('continue');
+
+        let triggerToFire = '';
+        let prefix = '';
+
+        if (!spokenTriggersRef.current.has('initial') && distMiles > 0.1) {
+            triggerToFire = 'initial';
+            if (isContinue && distMiles > 1) {
+                 prefix = `Continue for ${Math.round(distMiles)} miles, then `;
+            } else if (distMiles >= 2) {
+                 prefix = `In ${Math.round(distMiles)} miles, `;
+            } else if (distMiles >= 0.8) {
+                 prefix = `In one mile, `;
+            } else if (distMiles >= 0.4) {
+                 prefix = `In half a mile, `;
+            } else {
+                 prefix = `In ${Math.round(distFeet / 100) * 100} feet, `;
+            }
+        } else if (distMiles <= 1.05 && distMiles > 0.9 && !spokenTriggersRef.current.has('1mi')) {
+            triggerToFire = '1mi';
+            if (!isContinue) prefix = 'In one mile, ';
+        } else if (distMiles <= 0.55 && distMiles > 0.45 && !spokenTriggersRef.current.has('0.5mi')) {
+            triggerToFire = '0.5mi';
+            if (!isContinue) prefix = 'In half a mile, ';
+        } else if (distFeet <= 1000 && distFeet > 800 && !spokenTriggersRef.current.has('1000ft')) {
+            triggerToFire = '1000ft';
+            if (!isContinue) prefix = 'In one thousand feet, ';
+        } else if (distFeet <= 500 && distFeet > 300 && !spokenTriggersRef.current.has('500ft')) {
+            triggerToFire = '500ft';
+            if (!isContinue) prefix = 'In 500 feet, ';
+        } else if (distFeet <= 150 && !spokenTriggersRef.current.has('now')) {
+            triggerToFire = 'now';
+            prefix = '';
+        }
+
+        if (triggerToFire) {
+            spokenTriggersRef.current.add(triggerToFire);
+
+            // Don't repeat the exact same text if it's a "Continue" instruction (unless it's the first time)
+            if (isContinue && triggerToFire !== 'initial') return;
+            // Also skip if we are about to say an empty prefix and the instruction is just "Continue"
+            if (isContinue && !prefix) return;
+
+            const fullSpokenText = prefix + textToSpeak;
+
+            // Optional: prevent identical back-to-back TTS (e.g. initial firing immediately followed by 1000ft)
+            if (lastSpokenManeuverRef.current !== fullSpokenText) {
+                lastSpokenManeuverRef.current = fullSpokenText;
                 Speech.stop();
-                Speech.speak(textToSpeak, {
+                Speech.speak(fullSpokenText, {
                     language: 'en',
                     pitch: 1.0,
                     rate: 0.9,
                 });
-                lastSpokenText.current = textToSpeak;
-            } else {
-                console.log(`[NavVoice] Skipping redundant voice: "${textToSpeak}" is same as last, and dist ${Math.round(distFeet)}ft > 300ft`);
             }
-
-            // Always update the index so we don't keep trying this frame
-            lastSpokenIndex.current = stepIndex;
         }
-    }, [stepIndex, isRecalculating, nextManeuver]);
+    }, [distanceToNext, stepIndex, isRecalculating, nextManeuver]);
 
     // -- 3.5 SPEED LIMIT LOOP --
     React.useEffect(() => {
@@ -315,7 +370,9 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                     style={{ transform: [{ rotate: activeRotation }], marginRight: 15 }}
                 />
                 <View style={{ flex: 1 }}>
-                    <Text style={styles.maneuverText} numberOfLines={1}>{nextManeuver?.name || 'Proceed'}</Text>
+                    <Text style={styles.maneuverText} numberOfLines={2}>
+                        {nextManeuver?.name || 'Proceed'}
+                    </Text>
                     <Text style={styles.maneuverDist}>{distDisplay}</Text>
                 </View>
             </View>

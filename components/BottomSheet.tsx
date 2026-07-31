@@ -57,6 +57,8 @@ export function BottomSheet({ visible, children, header, state, onStateChange, p
 
     // Gesture
     const gesture = Gesture.Pan()
+        .activeOffsetY([-10, 10]) // Only activate on vertical movement
+        .failOffsetX([-10, 10])   // Ignore if horizontal movement is detected
         .onStart(() => {
             context.value = { y: translateY.value };
         })

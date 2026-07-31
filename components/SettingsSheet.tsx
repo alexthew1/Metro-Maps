@@ -18,9 +18,10 @@ interface SettingsSheetProps {
     showUserLocation: boolean;
     onShowUserLocationChange: (val: boolean) => void;
     onClearHistory: () => void;
+    onChangeApiKey: () => void;
 }
 
-export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoomControls, onShowZoomControlsChange, showUserLocation, onShowUserLocationChange, onClearHistory }: SettingsSheetProps) {
+export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoomControls, onShowZoomControlsChange, showUserLocation, onShowUserLocationChange, onClearHistory, onChangeApiKey }: SettingsSheetProps) {
     const insets = useSafeAreaInsets();
     const [unitsExpanded, setUnitsExpanded] = React.useState(false);
 
@@ -116,8 +117,13 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
                     </View>
                 )}
 
+                {/* API Key Button */}
+                <TouchableOpacity style={[styles.button, { marginTop: 15 }]} activeOpacity={0.8} onPress={onChangeApiKey}>
+                    <Text style={styles.buttonText}>update API key</Text>
+                </TouchableOpacity>
+
                 {/* Clear History Button */}
-                <TouchableOpacity style={styles.button} activeOpacity={0.8} onPress={onClearHistory}>
+                <TouchableOpacity style={[styles.button, { marginTop: 15 }]} activeOpacity={0.8} onPress={onClearHistory}>
                     <Text style={styles.buttonText}>clear history</Text>
                 </TouchableOpacity>
 

@@ -1,11 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Colors } from '../constants/Colors';
 import { RouteResult, SearchResult } from '../services/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { Svg, Path, Circle } from 'react-native-svg';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Svg, Path, Circle, Rect } from 'react-native-svg';
 import { horizontalScale } from '../utils/responsive';
 
 // Metro/Here Maps Desaturated Style
@@ -338,7 +338,9 @@ interface MapLayerProps {
     userLocation: { latitude: number; longitude: number; heading?: number | null } | null;
     destination: SearchResult | null;
     results?: SearchResult[];
-    route: RouteResult | null;
+    routes?: RouteResult[];
+    selectedRouteIndex?: number;
+    onSelectRoute?: (index: number) => void;
     mapType?: 'standard' | 'satellite';
     onMapPress: () => void;
     onPinPress: (item?: SearchResult) => void;
@@ -352,10 +354,15 @@ interface MapLayerProps {
     showsBuildings?: boolean;
     showZoomControls?: boolean;
     showUserLocation?: boolean;
+    useMiles?: boolean;
     initialRegion?: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
 }
 
-export function MapLayer({ userLocation, destination, results = [], route, mapType = 'standard', showLabels = true, showsBuildings = true, showZoomControls = false, showUserLocation = true, onMapPress, onPinPress, cameraTrigger, onRegionChange, cameraMode = 'default', isFollowing = true, onFollowChange, onHeadingChange, initialRegion }: MapLayerProps) {
+export function MapLayer({ userLocation, destination, results = [], routes = [], selectedRouteIndex = 0, onSelectRoute, mapType = 'standard', showLabels = true, showsBuildings = true, showZoomControls = false, showUserLocation = true, useMiles = true, onMapPress, onPinPress, cameraTrigger, onRegionChange, cameraMode = 'default', isFollowing = true, onFollowChange, onHeadingChange, initialRegion }: MapLayerProps) {
+    const route = routes[selectedRouteIndex] || null;
+
+    // Route path processing
+
     // Determine effective map type for Satellite/Hybrid switch
     // User requested "all labels" for satellite, so we force 'hybrid'
     const effectiveMapType = mapType === 'satellite' ? 'hybrid' : 'standard';
@@ -365,7 +372,7 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
     const effectiveMapStyle = showLabels
         ? MAP_STYLE
         : [...MAP_STYLE, { "elementType": "labels", "stylers": [{ "visibility": "off" }] }];
-    // ...
+
     // Camera Change Handler
     const handleRegionChange = (region: any, details?: any) => {
         onRegionChange?.(region);
@@ -401,27 +408,9 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
 
         // Active Navigation Mode: Follow user with tilt (ONLY if isFollowing is true)
         if (cameraMode === 'navigation' && userLocation && isFollowing) {
+            // The camera should simply follow the user's actual heading so it stays directly behind the dot.
+            // (Removed route look-ahead bearing to ensure it perfectly matches the dot's current direction)
             let targetHeading = userLocation.heading || 0;
-
-            // Prioritize Route Bearing if available
-            if (route && route.coordinates.length > 1) {
-                // Use last known index from trimming logic
-                let idx = lastClosestIndex.current || 0;
-
-                // Look ahead further for smoother camera (3-5 points ahead)
-                let targetIdx = Math.min(idx + 3, route.coordinates.length - 1);
-
-                const p1 = userLocation;
-                const p2 = route.coordinates[targetIdx];
-
-                // If points are very close, look even further ahead for stability
-                const distSq = getDistSq(p1, p2);
-                if (distSq < 0.0000001 && targetIdx < route.coordinates.length - 3) {
-                    targetIdx = Math.min(idx + 5, route.coordinates.length - 1);
-                }
-
-                targetHeading = getBearing(p1, route.coordinates[targetIdx]);
-            }
 
             mapRef.current.animateCamera({
                 center: userLocation,
@@ -533,73 +522,74 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
     }, [route]);
 
     // Route Trimming & Snapping Logic - Use useMemo for instant updates
-    const { displayCoordinates, computedSnappedLocation } = React.useMemo(() => {
+    const { displayCoordinates, computedSnappedLocation, trimmedIndex } = React.useMemo(() => {
         if (!route) {
-            return { displayCoordinates: [], computedSnappedLocation: null };
+            return { displayCoordinates: [], computedSnappedLocation: null, trimmedIndex: 0 };
         }
 
         if (cameraMode !== 'navigation' || !userLocation) {
-            return { displayCoordinates: route.coordinates, computedSnappedLocation: null };
+            return { displayCoordinates: route.coordinates, computedSnappedLocation: null, trimmedIndex: 0 };
         }
 
-        // Find closest point on route to user (Vertex)
-        let minDistance = Infinity;
-        let closestIndex = 0;
-
-        for (let i = 0; i < route.coordinates.length; i++) {
-            const p = route.coordinates[i];
-            const d = (p.latitude - userLocation.latitude) ** 2 + (p.longitude - userLocation.longitude) ** 2;
-            if (d < minDistance) {
-                minDistance = d;
-                closestIndex = i;
-            }
-        }
-
-        lastClosestIndex.current = closestIndex;
-
-        // --- SNAPPING CALCULATION ---
-        let snapCandidate = route.coordinates[closestIndex];
-        let nextIndex = closestIndex; // Default to starting from closest (will verify below)
-
-        // Determine which segment is best and what the "next" index should be
-        const segments: { p1: any, p2: any, nextIdx: number }[] = [];
-
-        if (closestIndex > 0) {
-            segments.push({
-                p1: route.coordinates[closestIndex - 1],
-                p2: route.coordinates[closestIndex],
-                nextIdx: closestIndex
-            });
-        }
-        if (closestIndex < route.coordinates.length - 1) {
-            segments.push({
-                p1: route.coordinates[closestIndex],
-                p2: route.coordinates[closestIndex + 1],
-                nextIdx: closestIndex + 1
-            });
-        }
+        // Find closest SEGMENT on route to user (Projection-based)
+        // This is mathematically superior to vertex-distance because it correctly identifies the road 
+        // even on wide turns with dense corner nodes.
+        const searchStart = lastClosestIndex.current;
+        const searchEnd = Math.min(route.coordinates.length - 1, lastClosestIndex.current + 50);
 
         let bestSnapDist = Infinity;
+        let snapCandidate = route.coordinates[lastClosestIndex.current];
+        let nextIndex = lastClosestIndex.current;
+        let bestSegmentStartIdx = lastClosestIndex.current;
 
-        segments.forEach(seg => {
-            const p = getProjectedPoint(userLocation, seg.p1, seg.p2);
-            const d = getDistSq(userLocation, p);
+        for (let i = searchStart; i < searchEnd; i++) {
+            const p1 = route.coordinates[i];
+            const p2 = route.coordinates[i + 1];
+            const proj = getProjectedPoint(userLocation, p1, p2);
+            const d = getDistSq(userLocation, proj);
             if (d < bestSnapDist) {
                 bestSnapDist = d;
-                snapCandidate = p;
-                nextIndex = seg.nextIdx;
+                snapCandidate = proj;
+                nextIndex = i + 1;
+                bestSegmentStartIdx = i;
             }
-        });
+        }
 
-        // Threshold (~30 meters)
-        const SNAP_THRESHOLD_SQ = 0.0003 * 0.0003;
+        // Failsafe if user teleported or GPS drifted massively (approx 3km)
+        if (bestSnapDist > 0.001) { 
+            for (let i = 0; i < route.coordinates.length - 1; i++) {
+                const p1 = route.coordinates[i];
+                const p2 = route.coordinates[i + 1];
+                const proj = getProjectedPoint(userLocation, p1, p2);
+                const d = getDistSq(userLocation, proj);
+                if (d < bestSnapDist) {
+                    bestSnapDist = d;
+                    snapCandidate = proj;
+                    nextIndex = i + 1;
+                    bestSegmentStartIdx = i;
+                }
+            }
+        }
+
+        lastClosestIndex.current = bestSegmentStartIdx;
+
+        // Increase threshold to ~200 meters to ensure it doesn't drop the snapped point 
+        // when taking wide turns or when GPS drifts at an intersection.
+        const SNAP_THRESHOLD_SQ = 0.002 * 0.002;
         const snapped = bestSnapDist < SNAP_THRESHOLD_SQ ? snapCandidate : null;
 
-        // Trimming (Visual) - start from the NEXT vertex after our snap segment
-        const remaining = route.coordinates.slice(nextIndex);
-        const coords = snapped ? [snapped, ...remaining] : remaining;
+        // Trimming (Visual) - Update continuously (every frame) using the snapped point.
+        // Because 'snapped' is mathematically collinear with the road segment, inserting it
+        // perfectly preserves the road geometry without 'cutting corners' like raw GPS does.
+        let coords;
+        if (snapped) {
+            const remaining = route.coordinates.slice(nextIndex);
+            coords = [snapped, ...remaining];
+        } else {
+            coords = route.coordinates.slice(Math.max(0, bestSegmentStartIdx));
+        }
 
-        return { displayCoordinates: coords, computedSnappedLocation: snapped };
+        return { displayCoordinates: coords, computedSnappedLocation: snapped, trimmedIndex: bestSegmentStartIdx };
     }, [route, userLocation, cameraMode]);
 
     // Update snappedLocation state from memo (for puck rendering)
@@ -653,82 +643,106 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                         mapRef.current.getCamera().then(cam => onHeadingChange(cam.heading));
                     }
                 }}
-                onRegionChangeComplete={onRegionChange}
+                onRegionChangeComplete={(region) => {
+                    onRegionChange?.(region);
+                }}
                 mapPadding={{ top: insets.top, right: 0, bottom: 80 + insets.bottom, left: 0 }}
                 initialRegion={initialRegion}
             >
-                {/* Off-Road Connection Line (e.g. from Garage to Street) */}
-                {cameraMode === 'navigation' && userLocation && !snappedLocation && displayCoordinates.length > 0 && (
+
+                {/* Route Polylines */}
+                {routes.map((r, i) => {
+                    const isSelected = i === selectedRouteIndex;
+                    // Stagger the labels so they don't overlap if routes share the exact same path
+                    const fractions = [0.5, 0.45, 0.55];
+                    const fraction = fractions[i % fractions.length];
+                    const midpointIndex = Math.floor(r.coordinates.length * fraction);
+                    const midpoint = r.coordinates[midpointIndex];
+                    if (!midpoint) return null;
+                    
+                    const rDur = Math.round(r.duration / 60);
+                    const timeDisplay = rDur >= 60 ? `${Math.floor(rDur/60)}H ${rDur%60}M` : `${rDur} MIN`;
+                    const distDisplay = useMiles ? `${(r.distance / 1609.34).toFixed(1)} mi` : `${(r.distance / 1000).toFixed(1)} km`;
+
+                    return (
+                        <React.Fragment key={`route-group-${i}-${r.geometry.substring(0, 10)}`}>
+                            {!isSelected && (
+                                <Polyline
+                                    coordinates={r.coordinates}
+                                    strokeColor="#666666" // Dark gray
+                                    strokeWidth={4}
+                                    lineCap="round"
+                                    lineJoin="round"
+                                    zIndex={900}
+                                    tappable={true}
+                                    onPress={() => onSelectRoute?.(i)}
+                                />
+                            )}
+                        </React.Fragment>
+                    );
+                })}
+
+                {/* Route Line - Multi-color for traffic */}
+                {route && displayCoordinates.length > 1 && (
                     <>
-                        {/* Casing (White visibility halo) */}
-                        <Polyline
-                            key="connection-line-casing"
-                            coordinates={[userLocation, displayCoordinates[0]]}
-                            strokeColor="white"
-                            strokeWidth={5}
-                            lineDashPattern={[10, 10]}
-                            lineCap="square"
-                            zIndex={997}
-                        />
-                        {/* Main Line (Black) */}
-                        <Polyline
-                            key="connection-line"
-                            coordinates={[userLocation, displayCoordinates[0]]}
-                            strokeColor="black"
-                            strokeWidth={3}
-                            lineDashPattern={[10, 10]}
-                            lineCap="square"
-                            zIndex={998}
-                        />
+                        {(() => {
+                            if (!route.speedReadingIntervals || route.speedReadingIntervals.length === 0) {
+                                return (
+                                    <Polyline
+                                        key={`route-line-${route.geometry}`}
+                                        coordinates={displayCoordinates}
+                                        strokeColor="#4A90E2"
+                                        strokeWidth={5}
+                                        lineCap="round"
+                                        lineJoin="round"
+                                        zIndex={995}
+                                    />
+                                );
+                            }
+
+                            return route.speedReadingIntervals.map((interval, index) => {
+                                const adjustedStart = interval.startPolylinePointIndex - trimmedIndex;
+                                const adjustedEnd = interval.endPolylinePointIndex - trimmedIndex;
+                                
+                                if (adjustedEnd <= 0) return null;
+                                
+                                const renderStart = Math.max(0, adjustedStart);
+                                // Include end point to connect lines without gaps
+                                const segmentCoords = displayCoordinates.slice(renderStart, adjustedEnd + 1);
+                                
+                                if (segmentCoords.length < 2) return null;
+
+                                let color = "#4A90E2"; // NORMAL
+                                if (interval.speed === 'SLOW') color = "#F5A623";
+                                else if (interval.speed === 'TRAFFIC_JAM') color = "#D0021B";
+
+                                return (
+                                    <Polyline
+                                        key={`route-segment-${index}`}
+                                        coordinates={segmentCoords}
+                                        strokeColor={color}
+                                        strokeWidth={5}
+                                        lineCap="round"
+                                        lineJoin="round"
+                                        zIndex={995}
+                                    />
+                                );
+                            });
+                        })()}
                     </>
                 )}
 
-                {/* Route Line - Single Polyline for Performance (OOM Fix) */}
-                {route && displayCoordinates.length > 0 && (
-                    <Polyline
-                        key={`route-line-${displayCoordinates.length}`}
-                        coordinates={displayCoordinates}
-                        strokeColor="#4A90E2"
-                        strokeWidth={horizontalScale(10)}
-                        lineCap="round"
-                        lineJoin="round"
-                        zIndex={995}
-                    />
-                )}
-
-                {/* Custom Navigation Puck (Green Arrow) */}
+                {/* Custom Navigation Puck (Static PNG - bypasses Android bitmap clipping) */}
                 {cameraMode === 'navigation' && userLocation && (
                     <Marker
-                        coordinate={snappedLocation || userLocation}
+                        coordinate={userLocation}
                         anchor={{ x: 0.5, y: 0.5 }}
-                        flat={true} // Stays flat on map
+                        flat={true}
+                        rotation={userLocation.heading || 0}
                         zIndex={999}
-                    >
-                        {/* SVG Green Arrow with White Border */}
-                        <View style={{
-                            width: horizontalScale(40),
-                            height: horizontalScale(40),
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transform: [{ rotate: `${(userLocation.heading || 0)}deg` }]
-                        }}>
-                            <Svg width={horizontalScale(40)} height={horizontalScale(40)} viewBox="-20 -20 140 140">
-                                {/* White Border/Stroke Background */}
-                                <Path
-                                    d="M50 0 L100 100 L50 80 L0 100 Z"
-                                    fill="white"
-                                    stroke="white"
-                                    strokeWidth="6"
-                                    strokeLinejoin="round"
-                                />
-                                {/* Green Arrow */}
-                                <Path
-                                    d="M50 8 L92 92 L50 75 L8 92 Z"
-                                    fill="#4CC417" // Bright Green
-                                />
-                            </Svg>
-                        </View>
-                    </Marker>
+                        image={require('../assets/images/nav-puck.png')}
+                        tracksViewChanges={false}
+                    />
                 )}
                 {/* Re-implement Marker rotation properly below */}
 
@@ -771,6 +785,7 @@ export function MapLayer({ userLocation, destination, results = [], route, mapTy
                     </TouchableOpacity>
                 </View>
             )}
+
         </View>
     );
 }

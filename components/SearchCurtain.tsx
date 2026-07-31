@@ -107,7 +107,7 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
         }
 
         const hasLocationInQuery = /\b(in|near|at|around)\s+\w+/i.test(text);
-        const applyFilter = !hasLocationInQuery;
+        const applyFilter = false; // Never strictly filter, trust Google's location bias
 
         return await api.searchPlaces(text, searchLocation, 80467, applyFilter);
     };

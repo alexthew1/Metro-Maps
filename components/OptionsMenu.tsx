@@ -9,8 +9,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 interface OptionsMenuProps {
     active: boolean;
     onClose: () => void;
-    mapType?: 'standard' | 'satellite';
-    onMapTypeChange?: (type: 'standard' | 'satellite') => void;
     showLabels?: boolean;
     onShowLabelsChange?: (val: boolean) => void;
     showsBuildings?: boolean;
@@ -21,7 +19,7 @@ const THUMB_MAP = require('../assets/images/thumb_map.png');
 const THUMB_SAT = require('../assets/images/thumb_satellite.png');
 
 
-export function OptionsMenu({ active, onClose, mapType = 'standard', onMapTypeChange, showLabels = true, onShowLabelsChange, showsBuildings = true, onShowsBuildingsChange }: OptionsMenuProps) {
+export function OptionsMenu({ active, onClose, showLabels = true, onShowLabelsChange, showsBuildings = true, onShowsBuildingsChange }: OptionsMenuProps) {
     const insets = useSafeAreaInsets();
 
     const animatedStyle = useAnimatedStyle(() => {
@@ -58,24 +56,6 @@ export function OptionsMenu({ active, onClose, mapType = 'standard', onMapTypeCh
 
                 <Text style={[GlobalStyles.metroXL, { marginBottom: 30, marginLeft: -2 }]}>map options</Text>
 
-                {/* Map Type Tiles (Grid) */}
-                <View style={{ flexDirection: 'row', gap: 15, marginBottom: 30 }}>
-                    {/* Standard Map Tile */}
-                    <TouchableOpacity onPress={() => onMapTypeChange?.('standard')} style={{ alignItems: 'flex-start' }}>
-                        <View style={[styles.mapTile, mapType === 'standard' && styles.mapTileSelected]}>
-                            <Image source={THUMB_MAP} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                        </View>
-                        <Text style={{ fontFamily: 'OpenSans_400Regular', fontSize: 14, color: mapType === 'standard' ? Colors.accent : '#fff', marginTop: 8 }}>map</Text>
-                    </TouchableOpacity>
-
-                    {/* Satellite Map Tile */}
-                    <TouchableOpacity onPress={() => onMapTypeChange?.('satellite')} style={{ alignItems: 'flex-start' }}>
-                        <View style={[styles.mapTile, mapType === 'satellite' && styles.mapTileSelected]}>
-                            <Image source={THUMB_SAT} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                        </View>
-                        <Text style={{ fontFamily: 'OpenSans_400Regular', fontSize: 14, color: mapType === 'satellite' ? Colors.accent : '#fff', marginTop: 8 }}>satellite</Text>
-                    </TouchableOpacity>
-                </View>
 
                 {/* Settings / Features List */}
                 <View style={{ gap: 20 }}>

@@ -10,7 +10,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface NavigationSheetProps {
-    route: RouteResult | null;
+    routes?: RouteResult[];
+    selectedRouteIndex?: number;
+    onSelectRoute?: (index: number) => void;
     state: 'hidden' | 'peek' | 'expanded';
     onStateChange: (state: 'hidden' | 'peek' | 'expanded') => void;
     onStartNavigation?: () => void;
@@ -27,7 +29,8 @@ interface NavigationSheetProps {
     onCalculateRoute?: () => void;
 }
 
-export function NavigationSheet({ route, state, onStateChange, onStartNavigation, transportMode = 'driving', onModeChange, error, useMiles = true, step = 'routing', destination, startLocation, onStartLocationPress, onDestinationPress, onCalculateRoute }: NavigationSheetProps) {
+export function NavigationSheet({ routes = [], selectedRouteIndex = 0, onSelectRoute, state, onStateChange, onStartNavigation, transportMode = 'driving', onModeChange, error, useMiles = true, step = 'routing', destination, startLocation, onStartLocationPress, onDestinationPress, onCalculateRoute }: NavigationSheetProps) {
+    const route = routes[selectedRouteIndex] || null;
     const insets = useSafeAreaInsets();
 
     // If hidden, return null
@@ -147,11 +150,56 @@ export function NavigationSheet({ route, state, onStateChange, onStartNavigation
 
             {/* Large Title: "directions" */}
             <Text style={{ fontFamily: 'OpenSans_300Light', fontSize: normalizeFont(50), color: 'white', lineHeight: normalizeFont(55), marginTop: verticalScale(5), letterSpacing: -1 }}>directions</Text>
+            
+            {/* Alternative Routes Picker */}
+            {routes && routes.length > 1 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: horizontalScale(10), marginTop: verticalScale(15), paddingBottom: verticalScale(10) }}>
+                    {routes.map((r, idx) => {
+                        const mins = Math.round(r.duration / 60);
+                        const hrs = Math.floor(mins / 60);
+                        const rMins = mins % 60;
+                        const routeTime = hrs > 0 ? `${hrs}h ${rMins}m` : `${mins}m`;
+
+                        let routeDist = '0.0';
+                        if (useMiles) {
+                            const miles = r.distance / 1609.34;
+                            routeDist = `${miles.toFixed(1)} mi`;
+                        } else {
+                            const km = r.distance / 1000;
+                            routeDist = `${km.toFixed(1)} km`;
+                        }
+
+                        return (
+                            <TouchableOpacity
+                                key={idx}
+                                onPress={() => onSelectRoute?.(idx)}
+                                style={{
+                                    paddingVertical: verticalScale(10),
+                                    paddingHorizontal: horizontalScale(20),
+                                    borderWidth: 2,
+                                    borderColor: idx === selectedRouteIndex ? 'white' : '#444',
+                                    backgroundColor: idx === selectedRouteIndex ? Colors.accent : '#222',
+                                    minWidth: horizontalScale(120),
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <Text style={{ fontFamily: 'OpenSans_600SemiBold', fontSize: normalizeFont(14), color: 'white', marginBottom: verticalScale(2) }}>
+                                    route {idx + 1}
+                                </Text>
+                                <Text style={{ fontFamily: 'OpenSans_400Regular', fontSize: normalizeFont(12), color: idx === selectedRouteIndex ? 'rgba(255,255,255,0.9)' : '#ccc' }}>
+                                    {routeTime} • {routeDist}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+            )}
         </View>
     );
 
     return (
-        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={RoutingHeader} peekHeight={verticalScale(170)}>
+        <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={RoutingHeader} peekHeight={verticalScale(240)}>
             <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom + verticalScale(100) }}>
                 {error ? (
                     <View style={{ paddingVertical: verticalScale(20) }}>
