@@ -5,6 +5,7 @@ export type UnitsType = 'metric' | 'imperial' | 'imperial_uk';
 
 const UNITS_KEY = 'metro_maps_units';
 const LAST_REGION_KEY = 'metro_maps_last_region';
+const API_KEY_KEY = 'metro_maps_api_key';
 
 // Countries that use imperial UK (miles with UK standards)
 const UK_COUNTRIES = ['GB', 'UK'];
@@ -51,6 +52,21 @@ export const SettingsService = {
         }
     },
 
+    async getZoomControls(): Promise<boolean> {
+        try {
+            const val = await AsyncStorage.getItem('metro_maps_zoom');
+            return val === 'true';
+        } catch {
+            return false;
+        }
+    },
+
+    async setZoomControls(enabled: boolean): Promise<void> {
+        try {
+            await AsyncStorage.setItem('metro_maps_zoom', enabled ? 'true' : 'false');
+        } catch {}
+    },
+
     // Get the default units based on locale (for display purposes)
     getLocaleDefaultUnits(): UnitsType {
         return getDefaultUnits();
@@ -73,6 +89,25 @@ export const SettingsService = {
             await AsyncStorage.setItem(LAST_REGION_KEY, JSON.stringify(region));
         } catch (e) {
             console.error('Failed to save last region', e);
+        }
+    },
+
+    // Get the user-provided API key
+    async getApiKey(): Promise<string | null> {
+        try {
+            return await AsyncStorage.getItem(API_KEY_KEY);
+        } catch (e) {
+            console.error('Failed to load API key', e);
+            return null;
+        }
+    },
+
+    // Save the API key
+    async setApiKey(key: string): Promise<void> {
+        try {
+            await AsyncStorage.setItem(API_KEY_KEY, key);
+        } catch (e) {
+            console.error('Failed to save API key', e);
         }
     }
 };

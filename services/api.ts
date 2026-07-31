@@ -1,10 +1,14 @@
 import { decode } from '@mapbox/polyline';
 import Constants from 'expo-constants';
 
-// Read API key from environment (via app.config.js -> expo-constants)
-const GOOGLE_API_KEY = Constants.expoConfig?.extra?.googleMapsApiKey ||
-    Constants.expoConfig?.android?.config?.googleMaps?.apiKey ||
-    '';
+// Dynamic API Key that is set on app load, defaults to .env value in dev
+let GOOGLE_API_KEY = Constants.expoConfig?.extra?.googleMapsApiKey || '';
+
+export const setGoogleApiKey = (key: string) => {
+    if (key) {
+        GOOGLE_API_KEY = key;
+    }
+};
 const GOOGLE_BASE_URL = 'https://maps.googleapis.com/maps/api/place';
 
 export interface SearchResult {
@@ -21,6 +25,7 @@ export interface SearchResult {
     photos?: any[];
     vicinity?: string;
     isOpen?: boolean;
+    opening_hours?: string[];
     // Details loaded later
     phone?: string;
     website?: string;
@@ -39,6 +44,7 @@ export interface RouteResult {
         northeast: { lat: number; lng: number };
         southwest: { lat: number; lng: number };
     };
+    speedReadingIntervals?: { startPolylinePointIndex: number; endPolylinePointIndex: number; speed: 'NORMAL' | 'SLOW' | 'TRAFFIC_JAM' }[];
 }
 
 export const api = {
@@ -163,7 +169,8 @@ export const api = {
     async getPlaceDetails(placeId: string): Promise<SearchResult | null> {
         try {
             const fields = 'name,rating,formatted_phone_number,photos,reviews,website,opening_hours,geometry,formatted_address,user_ratings_total,price_level,url,editorial_summary';
-            const url = `${GOOGLE_BASE_URL}/details/json?place_id=${placeId}&fields=${fields}&key=${GOOGLE_API_KEY}`;
+            // Note: Google Places API hardcaps reviews at a maximum of 5.
+            const url = `${GOOGLE_BASE_URL}/details/json?place_id=${placeId}&fields=${fields}&reviews_sort=most_relevant&key=${GOOGLE_API_KEY}`;
 
             const response = await fetch(url);
             const data = await response.json();
@@ -188,6 +195,7 @@ export const api = {
                 photos: r.photos,
                 reviews: r.reviews,
                 isOpen: r.opening_hours?.open_now,
+                opening_hours: r.opening_hours?.weekday_text,
                 description: r.editorial_summary?.overview,
                 url: r.url,
             };
@@ -209,108 +217,144 @@ export const api = {
         return null;
     },
 
-    // Routing via Google Directions API (High-fidelity step polylines)
-    async getRoute(start: { lat: number; lon: number }, end: { lat: number; lon: number }, mode: 'driving' | 'walking' | 'transit' = 'driving'): Promise<RouteResult | null> {
+    // Routing via Google Routes API
+    async getRoutes(start: { lat: number; lon: number }, end: { lat: number; lon: number }, mode: 'driving' | 'walking' | 'transit' = 'driving'): Promise<RouteResult[] | null> {
         try {
-            console.log(`Fetching Google Directions (${mode})...`);
-            const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start.lat},${start.lon}&destination=${end.lat},${end.lon}&mode=${mode}&key=${GOOGLE_API_KEY}`;
-            const response = await fetch(url);
+            console.log(`Fetching Google Routes API (${mode})...`);
+            
+            const routeMode = mode === 'driving' ? 'DRIVE' : mode === 'walking' ? 'WALK' : 'TRANSIT';
+            
+            const url = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+            
+            const body: any = {
+                origin: { location: { latLng: { latitude: start.lat, longitude: start.lon } } },
+                destination: { location: { latLng: { latitude: end.lat, longitude: end.lon } } },
+                travelMode: routeMode,
+                computeAlternativeRoutes: true,
+            };
+
+            if (routeMode === 'DRIVE') {
+                body.routingPreference = 'TRAFFIC_AWARE';
+                body.extraComputations = ['TRAFFIC_ON_POLYLINE'];
+            }
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Goog-Api-Key': GOOGLE_API_KEY,
+                    'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs,routes.viewport,routes.travelAdvisory.speedReadingIntervals'
+                },
+                body: JSON.stringify(body)
+            });
+
             const json = await response.json();
 
-            if (json.status !== 'OK' || !json.routes || json.routes.length === 0) {
-                console.error("Google Directions Error:", json.status);
+            if (json.error) {
+                console.error("Google Routes Error:", json.error.message);
                 return null;
             }
 
-            const route = json.routes[0];
-            const leg = route.legs[0];
-            const encodedPolyline = route.overview_polyline.points;
-            const decodedPoints = decode(encodedPolyline);
+            if (!json.routes || json.routes.length === 0) {
+                console.error("Google Routes Error: No routes found");
+                return null;
+            }
 
-            // Normalize Maneuvers
-            const maneuvers = leg.steps.map((step: any) => {
-                // Check for Transit Details
-                if (step.travel_mode === 'TRANSIT' && step.transit_details) {
-                    const line = step.transit_details.line;
-                    const vehicle = line.vehicle.name || 'Transit';
-                    const num = line.short_name || line.name || '';
-                    const headsign = step.transit_details.headsign || '';
+            const parsedRoutes: RouteResult[] = json.routes.map((route: any) => {
+                const leg = route.legs[0];
+                const encodedPolyline = route.polyline?.encodedPolyline;
+                
+                // Normalize Maneuvers
+                const maneuvers = (leg.steps || []).map((step: any) => {
+                    const nav = step.navigationInstruction || {};
+                    
+                    // Transit details are nested differently in Routes API
+                    if (routeMode === 'TRANSIT' && step.transitDetails) {
+                        const transit = step.transitDetails;
+                        const lineName = transit.transitLine?.name || transit.transitLine?.nameShort || 'Transit';
+                        const headsign = transit.headsign || '';
+
+                        return {
+                            name: `${lineName} to ${headsign}`,
+                            maneuver: {
+                                location: [step.startLocation.latLng.longitude, step.startLocation.latLng.latitude],
+                                type: 'transit',
+                                modifier: (transit.transitLine?.vehicle?.type || 'transit').toLowerCase(),
+                            },
+                            distance: step.distanceMeters,
+                            duration: parseInt(step.staticDuration || '0'),
+                        };
+                    }
+
+                    // Standard Driving/Walking
+                    const rawManeuver = (nav.maneuver || 'STRAIGHT').toLowerCase();
+                    let type = 'turn';
+                    let modifier = 'straight';
+
+                    if (rawManeuver.includes('left')) modifier = 'left';
+                    if (rawManeuver.includes('right')) modifier = 'right';
+                    if (rawManeuver.includes('sharp_left')) modifier = 'sharp left';
+                    if (rawManeuver.includes('sharp_right')) modifier = 'sharp right';
+                    if (rawManeuver.includes('uturn')) modifier = 'uturn';
+                    if (rawManeuver.includes('straight')) modifier = 'straight';
+                    if (rawManeuver.includes('exit') || rawManeuver.includes('ramp')) type = 'off ramp';
+
+                    const instructions = nav.instructions || rawManeuver.replace(/_/g, ' ');
+                    if (routeMode === 'WALK' && !modifier) type = 'walk';
 
                     return {
-                        name: `${vehicle} ${num} to ${headsign}`,
+                        name: instructions,
                         maneuver: {
-                            location: [step.start_location.lng, step.start_location.lat],
-                            type: 'transit',
-                            modifier: vehicle.toLowerCase(), // 'bus', 'subway'
+                            location: [step.startLocation.latLng.longitude, step.startLocation.latLng.latitude], // [Lon, Lat]
+                            type: type,
+                            modifier: modifier,
+                            icon: rawManeuver, // Store raw google maneuver string for icon fetching
+                            bearing_after: 0,
                         },
-                        distance: step.distance.value,
-                        duration: step.duration.value,
+                        distance: step.distanceMeters,
+                        duration: parseInt(step.staticDuration || '0'),
                     };
+                });
+
+                // Add destination arrival
+                maneuvers.push({
+                    name: "Arrive at Destination",
+                    maneuver: {
+                        location: [leg.endLocation.latLng.longitude, leg.endLocation.latLng.latitude],
+                        type: 'arrive',
+                        modifier: 'straight',
+                    }
+                });
+
+                // Decode the overall route polyline (matches speedReadingIntervals perfectly)
+                const allCoordinates: { latitude: number; longitude: number }[] = [];
+                if (encodedPolyline) {
+                    const fullPoints = decode(encodedPolyline);
+                    fullPoints.forEach((point) => {
+                        allCoordinates.push({
+                            latitude: point[0],
+                            longitude: point[1],
+                        });
+                    });
                 }
-
-                // Standard Driving/Walking
-                const rawManeuver = step.maneuver || 'straight';
-                let type = 'turn';
-                let modifier = 'straight';
-
-                if (rawManeuver.includes('left')) modifier = 'left';
-                if (rawManeuver.includes('right')) modifier = 'right';
-                if (rawManeuver.includes('sharp-left')) modifier = 'sharp left';
-                if (rawManeuver.includes('sharp-right')) modifier = 'sharp right';
-                if (rawManeuver.includes('uturn')) modifier = 'uturn';
-                if (rawManeuver.includes('straight')) modifier = 'straight';
-                if (rawManeuver.includes('exit') || rawManeuver.includes('ramp')) type = 'off ramp';
-
-                // Fallback (Walking uses "turn-left" etc too)
-                if ((!step.maneuver) && step.html_instructions?.toLowerCase().includes('left')) modifier = 'left';
-                if ((!step.maneuver) && step.html_instructions?.toLowerCase().includes('right')) modifier = 'right';
-                if (step.travel_mode === 'WALKING' && !modifier) type = 'walk';
+                
+                const speedReadingIntervals = route.travelAdvisory?.speedReadingIntervals || [];
 
                 return {
-                    name: step.html_instructions.replace(/<[^>]*>/g, ''), // Strip HTML
-                    maneuver: {
-                        location: [step.start_location.lng, step.start_location.lat], // [Lon, Lat]
-                        type: type,
-                        modifier: modifier,
-                        icon: rawManeuver, // Store raw google maneuver string for icon fetching
-                        bearing_after: 0,
-                    },
-                    distance: step.distance.value,
-                    duration: step.duration.value,
+                    distance: route.distanceMeters,
+                    duration: parseInt(route.duration || '0'),
+                    geometry: encodedPolyline || Date.now().toString(), 
+                    coordinates: allCoordinates, 
+                    maneuvers: maneuvers,
+                    speedReadingIntervals: speedReadingIntervals,
+                    bounds: route.viewport ? { 
+                        northeast: { lat: route.viewport.high.latitude, lng: route.viewport.high.longitude },
+                        southwest: { lat: route.viewport.low.latitude, lng: route.viewport.low.longitude }
+                    } : undefined,
                 };
             });
-
-            // Add destination arrival
-            maneuvers.push({
-                name: "Arrive at Destination",
-                maneuver: {
-                    location: [leg.end_location.lng, leg.end_location.lat],
-                    type: 'arrive',
-                    modifier: 'straight',
-                }
-            });
-
-            // Concatenate all detailed polylines from steps for high fidelity
-            const allCoordinates: { latitude: number; longitude: number }[] = [];
-
-            leg.steps.forEach((step: any) => {
-                const stepPoints = decode(step.polyline.points);
-                stepPoints.forEach((point) => {
-                    allCoordinates.push({
-                        latitude: point[0],
-                        longitude: point[1],
-                    });
-                });
-            });
-
-            return {
-                distance: leg.distance.value,
-                duration: leg.duration.value,
-                geometry: route.overview_polyline.points, // Keep overview for fail-safe
-                coordinates: allCoordinates, // Use detailed coordinates
-                maneuvers: maneuvers,
-                bounds: route.bounds, // Google Directions viewport bounds
-            };
+            
+            return parsedRoutes;
         } catch (error) {
             console.error('Routing failed:', error);
             return null;
