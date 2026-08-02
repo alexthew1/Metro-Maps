@@ -1,10 +1,15 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '../constants/Colors';
-import { GlobalStyles } from '../constants/Styles';
+import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useCustomFont } from '../contexts/FontContext';
+import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 
 interface Props {
     children: ReactNode;
+    t: any;
+    colors: any;
+    getFont: (font: string) => string;
 }
 
 interface State {
@@ -12,14 +17,13 @@ interface State {
     error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundaryClass extends Component<Props, State> {
     public state: State = {
         hasError: false,
         error: null,
     };
 
     public static getDerivedStateFromError(error: Error): State {
-        // Update state so the next render will show the fallback UI.
         return { hasError: true, error };
     }
 
@@ -32,16 +36,18 @@ export class ErrorBoundary extends Component<Props, State> {
     };
 
     public render() {
+        const { t, colors, getFont } = this.props;
+
         if (this.state.hasError) {
             return (
-                <View style={styles.container}>
-                    <Text style={[GlobalStyles.metroLG, styles.title]}>:(</Text>
-                    <Text style={[GlobalStyles.metroMD, styles.subtitle]}>Something went wrong.</Text>
-                    <Text style={[GlobalStyles.metroSM, styles.errorText]}>
+                <View style={[styles.container, { backgroundColor: colors.accent }]}>
+                    <Text style={[styles.title, { color: 'white', fontFamily: getFont('OpenSans_300Light') }]}>:(</Text>
+                    <Text style={[styles.subtitle, { color: 'white', fontFamily: getFont('OpenSans_400Regular') }]}>{t('Something went wrong.')}</Text>
+                    <Text style={[styles.errorText, { color: 'white', fontFamily: getFont('OpenSans_400Regular') }]}>
                         {this.state.error?.toString()}
                     </Text>
-                    <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-                        <Text style={[GlobalStyles.metroMD, { color: Colors.background }]}>Try Again</Text>
+                    <TouchableOpacity style={[styles.button, { backgroundColor: colors.background }]} onPress={this.handleReset}>
+                        <Text style={{ color: colors.text, fontSize: normalizeFont(18), fontFamily: getFont('OpenSans_600SemiBold') }}>{t('Try Again')}</Text>
                     </TouchableOpacity>
                 </View>
             );
@@ -54,25 +60,46 @@ export class ErrorBoundary extends Component<Props, State> {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.accent, // Use accent or error color
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
     },
     title: {
+        fontSize: normalizeFont(60),
         marginBottom: 16,
     },
     subtitle: {
+        fontSize: normalizeFont(24),
         marginBottom: 8,
     },
     errorText: {
+        fontSize: normalizeFont(14),
         marginBottom: 32,
         opacity: 0.8,
         textAlign: 'center',
     },
     button: {
-        backgroundColor: Colors.white,
         paddingHorizontal: 24,
         paddingVertical: 12,
     },
 });
+
+export function ErrorBoundary({ children }: { children: ReactNode }) {
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        if (defaultFont.includes('700Bold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
+
+    return (
+        <ErrorBoundaryClass t={t} colors={colors} getFont={getFont}>
+            {children}
+        </ErrorBoundaryClass>
+    );
+}

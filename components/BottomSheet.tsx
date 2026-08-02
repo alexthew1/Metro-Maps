@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo } from 'react';
-import { StyleSheet, View, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import { StyleSheet, View, Dimensions } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, Easing } from 'react-native-reanimated';
 import { Colors } from '../constants/Colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -24,6 +25,7 @@ interface BottomSheetProps {
 export function BottomSheet({ visible, children, header, state, onStateChange, peekHeight }: BottomSheetProps) {
     const translateY = useSharedValue(HIDDEN_Y);
     const context = useSharedValue({ y: 0 });
+    const { colors } = useTheme();
 
     // Track state as a shared value for use in worklets (0=hidden, 1=peek, 2=expanded)
     const stateValue = useSharedValue(state === 'hidden' ? 0 : state === 'peek' ? 1 : 2);
@@ -56,7 +58,7 @@ export function BottomSheet({ visible, children, header, state, onStateChange, p
     }, [visible, state, PEEK_Y]);
 
     // Gesture
-    const gesture = Gesture.Pan()
+    const panGesture = Gesture.Pan()
         .activeOffsetY([-10, 10]) // Only activate on vertical movement
         .failOffsetX([-10, 10])   // Ignore if horizontal movement is detected
         .onStart(() => {
@@ -66,25 +68,22 @@ export function BottomSheet({ visible, children, header, state, onStateChange, p
             let newY = event.translationY + context.value.y;
 
             // Clamp based on state:
-            // Expanded: PINNED at top - can only go down to PEEK_Y
-            // Peek: PINNED at bottom - can only go up to EXPANDED_Y (can't shrink below peek)
             if (state === 'expanded') {
-                newY = Math.max(newY, EXPANDED_Y); // Can't go above expanded (pinned)
-                newY = Math.min(newY, PEEK_Y); // Can only shrink down to peek
+                newY = Math.max(newY, EXPANDED_Y);
+                newY = Math.min(newY, PEEK_Y);
             } else if (state === 'peek') {
-                newY = Math.max(newY, EXPANDED_Y); // Can go up to expanded
-                newY = Math.min(newY, PEEK_Y); // PINNED - can't go below peek
+                newY = Math.max(newY, EXPANDED_Y);
+                newY = Math.min(newY, PEEK_Y);
             }
 
             translateY.value = newY;
         })
         .onEnd((event) => {
-            const dragY = event.translationY; // Down is positive
+            const dragY = event.translationY;
 
             let targetState: 'hidden' | 'peek' | 'expanded' = state === 'hidden' ? 'peek' : state;
             let targetY = state === 'peek' ? PEEK_Y : EXPANDED_Y;
 
-            // Threshold logic
             if (state === 'peek') {
                 if (dragY < -50) {
                     targetState = 'expanded';
@@ -101,17 +100,18 @@ export function BottomSheet({ visible, children, header, state, onStateChange, p
                 }
             }
 
-            // Animate immediately on UI thread (no JS round-trip delay)
             translateY.value = withTiming(targetY, { duration: 350, easing: Easing.out(Easing.cubic) });
-
-            // Sync state to React (for other components to know)
             runOnJS(onStateChange)(targetState);
         });
 
     // Tap to expand from peek
-    const handleTap = () => {
-        if (state === 'peek') onStateChange('expanded');
-    }
+    const tapGesture = Gesture.Tap().onEnd(() => {
+        if (state === 'peek') {
+            runOnJS(onStateChange)('expanded');
+        }
+    });
+
+    const composedGesture = Gesture.Simultaneous(panGesture, tapGesture);
 
     const rStyle = useAnimatedStyle(() => {
         return {
@@ -120,15 +120,13 @@ export function BottomSheet({ visible, children, header, state, onStateChange, p
     });
 
     return (
-        <Animated.View style={[styles.sheet, rStyle]}>
-            <GestureDetector gesture={gesture}>
-                <TouchableWithoutFeedback onPress={handleTap}>
-                    <View style={styles.handleContainer}>
-                        {header}
-                    </View>
-                </TouchableWithoutFeedback>
+        <Animated.View style={[styles.sheet, rStyle, { backgroundColor: colors.background }]}>
+            <GestureDetector gesture={composedGesture}>
+                <Animated.View style={[styles.handleContainer, { backgroundColor: colors.background }]}>
+                    {header}
+                </Animated.View>
             </GestureDetector>
-            <View style={[styles.contentContainer, { maxHeight: EXPANDED_HEIGHT - 100 }]}>
+            <View style={[styles.contentContainer, { maxHeight: EXPANDED_HEIGHT - 100, backgroundColor: colors.background }]}>
                 {children}
             </View>
         </Animated.View>
@@ -141,8 +139,7 @@ const styles = StyleSheet.create({
         top: 0,
         left: 0,
         right: 0,
-        height: SCREEN_HEIGHT, // Full height available, but positioned down
-        backgroundColor: 'black',
+        height: SCREEN_HEIGHT,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -5 },
         shadowOpacity: 0.8,
@@ -150,12 +147,10 @@ const styles = StyleSheet.create({
         zIndex: 40,
     },
     handleContainer: {
-        backgroundColor: 'black',
-        // borderBottomWidth: 1, // Removed for cleaner Metro look
+        // borderBottomWidth: 1,
         // borderBottomColor: '#333',
     },
     contentContainer: {
         flex: 1,
-        backgroundColor: 'black',
     }
 });

@@ -9,6 +9,9 @@ import { api, SearchResult } from '../services/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RecentsService } from '../services/recents';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useCustomFont } from '../contexts/FontContext';
 
 interface SearchCurtainProps {
     active: boolean;
@@ -32,6 +35,17 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
     const [results, setResults] = useState<SearchResult[]>([]);
     const [recents, setRecents] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
+
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
 
     // Initial Load of Recents
     useEffect(() => {
@@ -175,13 +189,13 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
         <Animated.View
             entering={SlideInUp.duration(400).easing(Easing.out(Easing.cubic))}
             exiting={SlideOutUp.duration(300).easing(Easing.in(Easing.quad))}
-            style={[styles.container, { paddingTop: insets.top + 20 }]}
+            style={[styles.container, { paddingTop: insets.top + 20, backgroundColor: colors.searchCurtainBg }]}
         >
-            <View style={styles.searchBoxWrapper}>
+            <View style={[styles.searchBoxWrapper, { backgroundColor: 'white' }]}>
                 <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search..."
-                    placeholderTextColor="#999"
+                    style={[styles.searchInput, { color: 'black', fontFamily: getFont('OpenSans_400Regular') }]}
+                    placeholder={t("Search...")}
+                    placeholderTextColor={colors.textDim}
                     value={query}
                     onChangeText={setQuery}
                     autoFocus={false}
@@ -189,7 +203,7 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                     onSubmitEditing={handleSearchSubmit}
                 />
                 <TouchableOpacity onPress={onClose}>
-                    <Svg width={22} height={22} fill={Colors.accent} viewBox="0 0 24 24">
+                    <Svg width={22} height={22} fill={colors.accent} viewBox="0 0 24 24">
                         <Path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
                     </Svg>
                 </TouchableOpacity>
@@ -202,10 +216,10 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                         {CATEGORIES.map((cat) => (
                             <MetroButton
                                 key={cat}
-                                title={cat.toLowerCase()}
+                                title={t(cat.toLowerCase())}
                                 variant="outlined"
-                                style={{ borderColor: Colors.textDim, paddingVertical: 6, paddingHorizontal: 15 }}
-                                textStyle={{ color: Colors.white, fontSize: 16 }}
+                                style={{ borderColor: colors.textDim, paddingVertical: 6, paddingHorizontal: 15 }}
+                                textStyle={{ color: colors.text, fontSize: 16, fontFamily: getFont('OpenSans_400Regular') }}
                                 onPress={() => handleCategoryPress(cat)}
                             />
                         ))}
@@ -222,7 +236,7 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                     ListHeaderComponent={() => (
                         <>
                             {results.length === 0 && query.length === 0 && recents.length > 0 && (
-                                <Text style={[GlobalStyles.metroMD, { marginBottom: 10, opacity: 0.6 }]}>recent</Text>
+                                <Text style={[GlobalStyles.metroMD, { marginBottom: 10, opacity: 0.6, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('recent')}</Text>
                             )}
                         </>
                     )}
@@ -233,19 +247,19 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                         const showHistoryIcon = isRecent;
 
                         return (
-                            <TouchableOpacity style={styles.suggestion} onPress={() => {
+                            <TouchableOpacity style={[styles.suggestion, { borderBottomColor: colors.border }]} onPress={() => {
                                 Keyboard.dismiss();
                                 onResultSelected(item);
                             }}>
                                 {showHistoryIcon && (
                                     <View style={{ marginRight: 15 }}>
-                                        <MaterialCommunityIcons name="history" size={24} color="#666" />
+                                        <MaterialCommunityIcons name="history" size={24} color={colors.textDim} />
                                     </View>
                                 )}
                                 <View style={{ flex: 1 }}>
-                                    <Text style={[styles.suggestionText, { color: Colors.accent }]}>{item.display_name}</Text>
+                                    <Text style={[styles.suggestionText, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]}>{item.display_name}</Text>
                                     {(item.address || item.vicinity) ? (
-                                        <Text style={[styles.suggestionText, { color: '#bbb', fontSize: 16 }]}>{item.address || item.vicinity}</Text>
+                                        <Text style={[styles.suggestionText, { color: colors.textDim, fontSize: 16, fontFamily: getFont('OpenSans_400Regular') }]}>{item.address || item.vicinity}</Text>
                                     ) : null}
                                 </View>
                             </TouchableOpacity>

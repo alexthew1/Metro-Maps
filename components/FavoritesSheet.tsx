@@ -11,17 +11,23 @@ import { RecentsService } from '../services/recents';
 import { SearchResult } from '../services/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useCustomFont } from '../contexts/FontContext';
 
 // Simple Pivot Item with discrete color (jitter-free)
-function AnimatedFavPivotItem({ isActive, title, onPress }: {
+function AnimatedFavPivotItem({ isActive, title, onPress, colors, getFont, t }: {
     isActive: boolean;
     title: string;
     onPress: () => void;
+    colors: any;
+    getFont: (font: string) => string;
+    t: any;
 }) {
     return (
         <TouchableOpacity onPress={onPress}>
-            <Text style={[styles.pivotTitle, { color: isActive ? '#ffffff' : '#666666' }]}>
-                {title}
+            <Text style={[styles.pivotTitle, { color: isActive ? colors.text : colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>
+                {t(title)}
             </Text>
         </TouchableOpacity>
     );
@@ -40,6 +46,18 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState<Tab>('favorites');
     const pagerRef = useRef<PagerView>(null);
+
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        if (defaultFont.includes('700Bold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
 
     // Data
     const [favorites, setFavorites] = useState<Favorite[]>([]);
@@ -84,17 +102,17 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                 <View style={[styles.itemContainer, { paddingVertical: 10 }]}>
                     <View style={styles.editContainer}>
                         <TextInput
-                            style={styles.metroInput}
+                            style={[styles.metroInput, { color: colors.text, borderColor: colors.text, backgroundColor: colors.background, fontFamily: getFont('OpenSans_400Regular') }]}
                             value={editName}
                             onChangeText={setEditName}
-                            placeholder="Enter name"
-                            placeholderTextColor="#999"
+                            placeholder={t("Enter name")}
+                            placeholderTextColor={colors.textDim}
                             autoFocus
                             returnKeyType="done"
                             onSubmitEditing={() => handleSaveEdit(item.place_id)}
                             blurOnSubmit={true}
                         />
-                        <Text style={{ color: '#666', fontSize: 12, marginTop: 5, fontFamily: 'OpenSans_400Regular' }}>press enter to save</Text>
+                        <Text style={{ color: colors.textDim, fontSize: 12, marginTop: 5, fontFamily: getFont('OpenSans_400Regular') }}>{t('press enter to save')}</Text>
                     </View>
                 </View>
             );
@@ -112,14 +130,14 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                 }}
             >
                 <View style={{ flex: 1, marginRight: 10 }}>
-                    <Text style={styles.itemTitle} numberOfLines={1}>
+                    <Text style={[styles.itemTitle, { color: colors.text, fontFamily: getFont('OpenSans_600SemiBold') }]} numberOfLines={1}>
                         {item.alias || item.display_name}
                     </Text>
-                    <Text style={styles.itemSubtitle} numberOfLines={1}>
+                    <Text style={[styles.itemSubtitle, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={1}>
                         {item.address || item.vicinity}
                     </Text>
                     {item.alias && (
-                        <Text style={[styles.itemSubtitle, { fontSize: 12, opacity: 0.7 }]} numberOfLines={1}>
+                        <Text style={[styles.itemSubtitle, { fontSize: 12, opacity: 0.7, color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={1}>
                             {item.display_name}
                         </Text>
                     )}
@@ -133,14 +151,14 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                         setEditingId(item.place_id);
                     }}
                         style={{ padding: 5 }}>
-                        <MaterialCommunityIcons name="pencil" size={22} color="#666" />
+                        <MaterialCommunityIcons name="pencil" size={22} color={colors.textDim} />
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={(e) => {
                         e.stopPropagation();
                         handleDelete(item.place_id);
                     }}>
-                        <MaterialCommunityIcons name="star" size={24} color={Colors.accent} />
+                        <MaterialCommunityIcons name="star" size={24} color={colors.accent} />
                     </TouchableOpacity>
                 </View>
             </TouchableOpacity>
@@ -156,15 +174,15 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                 delayPressIn={100}
             >
                 <View style={{ flex: 1, marginRight: 10 }}>
-                    <Text style={styles.itemTitle} numberOfLines={1}>
+                    <Text style={[styles.itemTitle, { color: colors.text, fontFamily: getFont('OpenSans_600SemiBold') }]} numberOfLines={1}>
                         {item.display_name}
                     </Text>
-                    <Text style={styles.itemSubtitle} numberOfLines={1}>
+                    <Text style={[styles.itemSubtitle, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={1}>
                         {item.address || item.vicinity}
                     </Text>
                 </View>
                 {/* Recent Icon on Right */}
-                <MaterialCommunityIcons name="history" size={24} color="#666" />
+                <MaterialCommunityIcons name="history" size={24} color={colors.textDim} />
             </TouchableOpacity>
         );
     };
@@ -198,23 +216,29 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
 
     const Header = useMemo(() => (
         <View style={[styles.headerContainer, { overflow: 'hidden' }]}>
-            <Text style={[styles.overline, { marginBottom: verticalScale(8), marginHorizontal: horizontalScale(20) }]}>MY PLACES</Text>
+            <Text style={[styles.overline, { marginBottom: verticalScale(8), marginHorizontal: horizontalScale(20), color: colors.text, fontFamily: getFont('OpenSans_700Bold') }]}>{t('MY PLACES')}</Text>
             <View style={{ height: verticalScale(70), marginBottom: 0, marginLeft: horizontalScale(20) }}>
                 <Animated.View style={[styles.pivotRow, pivotAnimatedStyle]}>
                     <AnimatedFavPivotItem
                         isActive={activeTab === 'favorites'}
                         title="favorites"
                         onPress={() => handleTabChange('favorites')}
+                        colors={colors}
+                        getFont={getFont}
+                        t={t}
                     />
                     <AnimatedFavPivotItem
                         isActive={activeTab === 'recent'}
                         title="recent"
                         onPress={() => handleTabChange('recent')}
+                        colors={colors}
+                        getFont={getFont}
+                        t={t}
                     />
                 </Animated.View>
             </View>
         </View>
-    ), [activeTab, pivotAnimatedStyle]);
+    ), [activeTab, pivotAnimatedStyle, colors, customFonts, t]);
 
     return (
         <BottomSheet visible={state !== 'hidden'} state={state} onStateChange={onStateChange} header={Header} peekHeight={155}>
@@ -231,11 +255,11 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                         renderItem={renderFavoriteItem}
                         keyExtractor={item => item.place_id}
                         contentContainerStyle={styles.listContent}
-                        ItemSeparatorComponent={() => <View style={styles.separator} />}
+                        ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.border }]} />}
                         ListEmptyComponent={() => (
                             <View style={styles.emptyState}>
-                                <MaterialCommunityIcons name="star-outline" size={64} color="#444" />
-                                <Text style={styles.emptyText}>no favorites yet</Text>
+                                <MaterialCommunityIcons name="star-outline" size={64} color={colors.textDim} />
+                                <Text style={[styles.emptyText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('no favorites yet')}</Text>
                             </View>
                         )}
                     />
@@ -247,11 +271,11 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                         renderItem={renderRecentItem}
                         keyExtractor={item => item.place_id}
                         contentContainerStyle={styles.listContent}
-                        ItemSeparatorComponent={() => <View style={styles.separator} />}
+                        ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.border }]} />}
                         ListEmptyComponent={() => (
                             <View style={styles.emptyState}>
-                                <MaterialCommunityIcons name="history" size={64} color="#444" />
-                                <Text style={styles.emptyText}>no recent places</Text>
+                                <MaterialCommunityIcons name="history" size={64} color={colors.textDim} />
+                                <Text style={[styles.emptyText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('no recent places')}</Text>
                             </View>
                         )}
                     />
@@ -262,21 +286,13 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
 }
 
 const styles = StyleSheet.create({
-    container: {
-        position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: Colors.background,
-        zIndex: 100,
-    },
     headerContainer: {
         paddingTop: verticalScale(20),
         marginBottom: verticalScale(10),
     },
     overline: {
-        fontFamily: 'OpenSans_700Bold',
         fontSize: normalizeFont(14),
         letterSpacing: 1,
-        color: 'white',
         marginBottom: 0,
         opacity: 0.9,
     },
@@ -286,27 +302,16 @@ const styles = StyleSheet.create({
         gap: horizontalScale(20),
     },
     pivotTitle: {
-        fontFamily: 'OpenSans_300Light',
         fontSize: normalizeFont(60),
         lineHeight: normalizeFont(70),
         letterSpacing: -1,
-        color: 'white',
-    },
-    pivotActive: {
-        color: 'white',
-    },
-    pivotInactive: {
-        color: '#666',
-        fontSize: normalizeFont(60),
-        lineHeight: normalizeFont(70),
-        fontFamily: 'OpenSans_300Light',
     },
     listContent: {
         padding: horizontalScale(20),
         paddingBottom: verticalScale(100),
     },
     separator: {
-        height: 1, backgroundColor: '#222', marginVertical: verticalScale(10),
+        height: 1, marginVertical: verticalScale(10),
     },
     itemContainer: {
         minHeight: verticalScale(70), // Bit taller for Nokia feel
@@ -316,15 +321,11 @@ const styles = StyleSheet.create({
         paddingVertical: verticalScale(5),
     },
     itemTitle: {
-        fontFamily: 'OpenSans_600SemiBold', // Slightly bolder for title
         fontSize: normalizeFont(22),
-        color: 'white',
         marginBottom: verticalScale(4),
     },
     itemSubtitle: {
-        fontFamily: 'OpenSans_400Regular',
         fontSize: normalizeFont(14),
-        color: Colors.accent, // Metro Blue for subtitle/address often used in Nokia Maps
     },
     editContainer: {
         flex: 1,
@@ -333,21 +334,10 @@ const styles = StyleSheet.create({
         paddingVertical: verticalScale(10),
     },
     metroInput: {
-        backgroundColor: '#000',
-        color: 'white',
         padding: verticalScale(12),
         fontSize: normalizeFont(18),
-        fontFamily: 'OpenSans_400Regular',
         borderWidth: 2,
-        borderColor: 'white', // High contrast border
         borderRadius: 0, // NO CORNERS
-    },
-    iconBtn: {
-        padding: 5,
-        backgroundColor: '#333', // Slight background for hit target
-        borderRadius: 20, // Circular touch target visual
-        width: horizontalScale(40), height: horizontalScale(40),
-        alignItems: 'center', justifyContent: 'center',
     },
     emptyState: {
         flex: 1,
@@ -356,9 +346,7 @@ const styles = StyleSheet.create({
         paddingTop: verticalScale(100),
     },
     emptyText: {
-        fontFamily: 'OpenSans_400Regular',
         fontSize: normalizeFont(18),
-        color: '#666',
         marginTop: verticalScale(20),
     }
 });

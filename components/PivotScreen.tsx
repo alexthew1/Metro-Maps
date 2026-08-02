@@ -10,17 +10,23 @@ import { MetroButton } from './MetroButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchResult, api } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useCustomFont } from '../contexts/FontContext';
 
-// Simple Pivot Item with discrete color (jitter-free)
-function AnimatedPivotItem({ isActive, title, onPress }: {
+function AnimatedPivotItem({ isActive, title, onPress, colors, getFont, t, onLayout }: {
     isActive: boolean;
     title: string;
     onPress: () => void;
+    colors: any;
+    getFont: (font: string) => string;
+    t: any;
+    onLayout: (e: any) => void;
 }) {
     return (
-        <TouchableOpacity onPress={onPress}>
-            <Text style={[styles.pivotHeaderItem, { color: isActive ? '#ffffff' : '#666666' }]}>
-                {title}
+        <TouchableOpacity onPress={onPress} onLayout={onLayout}>
+            <Text style={[styles.pivotHeaderItem, { color: isActive ? colors.text : colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>
+                {t(title)}
             </Text>
         </TouchableOpacity>
     );
@@ -47,6 +53,18 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
     const [fullScreenPhotoIndex, setFullScreenPhotoIndex] = useState<number | null>(null);
     const [showAddPhotoToast, setShowAddPhotoToast] = useState(false);
     const addPhotoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        if (defaultFont.includes('700Bold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
 
     const handleAddPhotoPress = () => {
         setShowAddPhotoToast(true);
@@ -88,12 +106,19 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
         setActivePage(index);
     };
 
+    const [headerWidths, setHeaderWidths] = useState<number[]>([0, 0, 0, 0]);
+
     // Header Animation - Triggered on page selection for smooth, jitter-free transitions
     const headerOffset = useSharedValue(0);
 
     useEffect(() => {
-        headerOffset.value = withTiming(-activePage * 140, { duration: 300, easing: Easing.out(Easing.cubic) });
-    }, [activePage]);
+        let offset = 0;
+        const gap = horizontalScale(20);
+        for (let i = 0; i < activePage; i++) {
+            offset += (headerWidths[i] || 0) + gap;
+        }
+        headerOffset.value = withTiming(-offset, { duration: 300, easing: Easing.out(Easing.cubic) });
+    }, [activePage, headerWidths]);
 
     const headerStyle = useAnimatedStyle(() => {
         return {
@@ -107,14 +132,14 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
         <Animated.View
             entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))}
             exiting={SlideOutDown.duration(400).easing(Easing.out(Easing.cubic))}
-            style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: 0 }]} // Handle paddingBottom in AppBar
+            style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: 0, backgroundColor: colors.background }]} // Handle paddingBottom in AppBar
         >
             {/* Background - Black for WP Style */}
-            <View style={StyleSheet.absoluteFillObject} />
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.background }]} />
 
             {/* Title (Small, Uppercase, Top Left) */}
             <View style={{ paddingHorizontal: 20, marginBottom: 0 }}>
-                <Text style={[GlobalStyles.metroSM, { fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', color: '#fff', fontFamily: 'OpenSans_700Bold' }]} numberOfLines={1}>
+                <Text style={[GlobalStyles.metroSM, { fontSize: 14, letterSpacing: 1, textTransform: 'uppercase', color: colors.text, fontFamily: getFont('OpenSans_700Bold') }]} numberOfLines={1}>
                     {details.display_name.toUpperCase()}
                 </Text>
             </View>
@@ -128,6 +153,17 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                             isActive={activePage === index}
                             title={title}
                             onPress={() => snapToPage(index)}
+                            colors={colors}
+                            getFont={getFont}
+                            t={t}
+                            onLayout={(e) => {
+                                const w = e.nativeEvent.layout.width;
+                                setHeaderWidths(prev => {
+                                    const next = [...prev];
+                                    next[index] = w;
+                                    return next;
+                                });
+                            }}
                         />
                     ))}
                 </Animated.View>
@@ -147,7 +183,7 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                     <ScrollView contentContainerStyle={{ padding: 20 }}>
                         <View style={{ gap: 20 }}>
                             {/* Mini Map */}
-                            <View style={{ width: 140, height: 140, backgroundColor: '#333' }}>
+                            <View style={{ width: 140, height: 140, backgroundColor: colors.border }}>
                                 <MapView
                                     provider={PROVIDER_GOOGLE}
                                     style={{ flex: 1 }}
@@ -169,9 +205,9 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
 
                             {/* Get Directions */}
                             <TouchableOpacity onPress={onGetDirections}>
-                                <Text style={[GlobalStyles.metroLG, { fontSize: 28, marginBottom: 4 }]}>get directions</Text>
-                                <Text style={[GlobalStyles.metroMD, { color: Colors.accent }]}>{details.address?.split(',')[0]}</Text>
-                                <Text style={[GlobalStyles.metroMD, { color: Colors.accent, fontSize: 16 }]}>{details.address}</Text>
+                                <Text style={[GlobalStyles.metroLG, { fontSize: 28, marginBottom: 4, fontFamily: getFont('OpenSans_400Regular'), color: colors.text }]}>{t('get directions')}</Text>
+                                <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address?.split(',')[0]}</Text>
+                                <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontSize: 16, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address}</Text>
                             </TouchableOpacity>
 
                             {/* Rating */}
@@ -184,19 +220,19 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                                             else if (details.rating! >= star - 0.75) iconName = 'star-half';
                                             return <Ionicons key={star} name={iconName} size={24} color="#FFD700" style={{ marginRight: 2 }} />;
                                         })}
-                                        <Text style={[GlobalStyles.metroMD, { fontSize: 20, marginLeft: 8, color: '#FFD700' }]}>
+                                        <Text style={[GlobalStyles.metroMD, { fontSize: 20, marginLeft: 8, color: '#FFD700', fontFamily: getFont('OpenSans_400Regular') }]}>
                                             {details.rating.toFixed(1)}
                                         </Text>
                                     </View>
-                                    <Text style={[GlobalStyles.metroSM, { fontSize: 16, color: '#999' }]}>
-                                        {details.user_ratings_total} reviews
+                                    <Text style={[GlobalStyles.metroSM, { fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>
+                                        {details.user_ratings_total} {t('reviews')}
                                     </Text>
                                 </View>
                             ) : null}
 
                             {/* Description (Real) */}
                             {details.description ? (
-                                <Text style={[GlobalStyles.metroMD, { fontSize: 20, lineHeight: 28 }]}>
+                                <Text style={[GlobalStyles.metroMD, { fontSize: 20, lineHeight: 28, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
                                     {details.description}
                                 </Text>
                             ) : null}
@@ -204,16 +240,16 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                             {/* Phone */}
                             {details.phone && (
                                 <View style={{ marginTop: 10 }}>
-                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText]}>PHONE</Text>
-                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22 }]} onPress={() => Linking.openURL(`tel:${details.phone}`)}>{details.phone}</Text>
+                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('PHONE')}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(`tel:${details.phone}`)}>{details.phone}</Text>
                                 </View>
                             )}
 
                             {/* Website */}
                             {details.website && (
                                 <View style={{ marginTop: 10 }}>
-                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText]}>WEBSITE</Text>
-                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: Colors.accent }]} onPress={() => Linking.openURL(details.website!)}>visit website</Text>
+                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('WEBSITE')}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(details.website!)}>{t('visit website')}</Text>
                                 </View>
                             )}
 
@@ -228,10 +264,10 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                         {/* "add a photo" button */}
                         <View style={{ marginBottom: 20 }}>
                             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleAddPhotoPress}>
-                                <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: '#fff', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-                                    <Ionicons name="add" size={24} color="#fff" />
+                                <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.text, justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
+                                    <Ionicons name="add" size={24} color={colors.text} />
                                 </View>
-                                <Text style={[GlobalStyles.metroMD, { fontSize: 24 }]}>add a photo</Text>
+                                <Text style={[GlobalStyles.metroMD, { fontSize: 24, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('add a photo')}</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -239,7 +275,7 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
                             {details.photos && details.photos.length > 0 ? (
                                 details.photos.map((photo: any, index: number) => (
-                                    <TouchableOpacity key={index} style={{ width: '23.5%', aspectRatio: 1, backgroundColor: '#222' }} onPress={() => setFullScreenPhotoIndex(index)}>
+                                    <TouchableOpacity key={index} style={{ width: '23.5%', aspectRatio: 1, backgroundColor: colors.border }} onPress={() => setFullScreenPhotoIndex(index)}>
                                         <Image
                                             source={{ uri: api.getPhotoUrl(photo.photo_reference, 200) }}
                                             style={{ width: '100%', height: '100%' }}
@@ -248,15 +284,15 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                                     </TouchableOpacity>
                                 ))
                             ) : (
-                                <Text style={GlobalStyles.dimText}>No photos available.</Text>
+                                <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No photos available.')}</Text>
                             )}
                         </View>
                     </ScrollView>
 
                     {/* Centered Toast */}
                     {showAddPhotoToast && (
-                        <Animated.View entering={FadeIn} exiting={FadeOut} style={{ position: 'absolute', alignSelf: 'center', top: '40%', backgroundColor: Colors.accent, paddingHorizontal: 16, paddingVertical: 8, zIndex: 50 }}>
-                            <Text style={[GlobalStyles.metroSM, { color: 'white', fontFamily: 'OpenSans_700Bold', fontSize: 16 }]}>not yet implemented</Text>
+                        <Animated.View entering={FadeIn} exiting={FadeOut} style={{ position: 'absolute', alignSelf: 'center', top: '40%', backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 8, zIndex: 50 }}>
+                            <Text style={[GlobalStyles.metroSM, { color: colors.white, fontFamily: getFont('OpenSans_700Bold'), fontSize: 16 }]}>{t('not yet implemented')}</Text>
                         </Animated.View>
                     )}
                 </View>
@@ -267,13 +303,13 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                         {details.reviews && details.reviews.length > 0 ? (
                             details.reviews.map((review: any, index: number) => (
                                 <View key={index} style={{ marginBottom: 32 }}>
-                                    <Text style={[GlobalStyles.metroMD, { fontFamily: 'OpenSans_700Bold', fontSize: 20, marginBottom: 4 }]}>{review.author_name}</Text>
-                                    <Text style={[GlobalStyles.metroMD, { color: Colors.accent, marginBottom: 8 }]}>{review.rating}/5 rating</Text>
-                                    <Text style={[GlobalStyles.metroSM, { opacity: 0.9, lineHeight: 22, fontSize: 16 }]}>{review.text}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { fontFamily: getFont('OpenSans_700Bold'), fontSize: 20, marginBottom: 4, color: colors.text }]}>{review.author_name}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { color: colors.accent, marginBottom: 8, fontFamily: getFont('OpenSans_400Regular') }]}>{review.rating}/5 {t('rating')}</Text>
+                                    <Text style={[GlobalStyles.metroSM, { opacity: 0.9, lineHeight: 22, fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{review.text}</Text>
                                 </View>
                             ))
                         ) : (
-                            <Text style={GlobalStyles.dimText}>No reviews available.</Text>
+                            <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No reviews available.')}</Text>
                         )}
                     </ScrollView>
                 </View>
@@ -286,14 +322,14 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                                 const [day, ...timeParts] = hourStr.split(': ');
                                 const time = timeParts.join(': ');
                                 return (
-                                    <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#333', paddingBottom: 8 }}>
-                                        <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: '#fff', fontFamily: 'OpenSans_700Bold' }]}>{day}</Text>
-                                        <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: '#999' }]}>{time}</Text>
+                                    <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 }}>
+                                        <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.text, fontFamily: getFont('OpenSans_700Bold') }]}>{day}</Text>
+                                        <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{time}</Text>
                                     </View>
                                 );
                             })
                         ) : (
-                            <Text style={GlobalStyles.dimText}>No hours available.</Text>
+                            <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No hours available.')}</Text>
                         )}
                     </ScrollView>
                 </View>
@@ -307,14 +343,15 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                     paddingBottom: insets.bottom,
                     justifyContent: 'center',
                     gap: 20,
+                    backgroundColor: colors.appBarBg,
                 }
             ]}>
                 {/* Favorites Button */}
                 <TouchableOpacity style={styles.appBarButton} onPress={onToggleFavorite}>
-                    <View style={styles.circleButton}>
-                        <Ionicons name={isFavorite ? "star" : "star-outline"} size={20} color="white" />
+                    <View style={[styles.circleButton, { borderColor: colors.text }]}>
+                        <Ionicons name={isFavorite ? "star" : "star-outline"} size={20} color={colors.text} />
                     </View>
-                    {showLabels && <Text style={{ color: 'white', fontSize: 12, marginTop: 4, fontFamily: 'OpenSans_400Regular' }}>favorite</Text>}
+                    {showLabels && <Text style={{ color: colors.text, fontSize: 12, marginTop: 4, fontFamily: getFont('OpenSans_400Regular') }}>{t('favorite')}</Text>}
                 </TouchableOpacity>
 
                 {/* Share Button */}
@@ -330,10 +367,10 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                         // ignore
                     }
                 }}>
-                    <View style={styles.circleButton}>
-                        <Ionicons name="share-social-outline" size={20} color="white" />
+                    <View style={[styles.circleButton, { borderColor: colors.text }]}>
+                        <Ionicons name="share-social-outline" size={20} color={colors.text} />
                     </View>
-                    {showLabels && <Text style={{ color: 'white', fontSize: 12, marginTop: 4, fontFamily: 'OpenSans_400Regular' }}>share</Text>}
+                    {showLabels && <Text style={{ color: colors.text, fontSize: 12, marginTop: 4, fontFamily: getFont('OpenSans_400Regular') }}>{t('share')}</Text>}
                 </TouchableOpacity>
 
                 {/* Expand Toggle */}
@@ -341,7 +378,7 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                     style={{ padding: 10, position: 'absolute', right: 20, bottom: insets.bottom + 15 }}
                     onPress={() => setShowLabels(!showLabels)}
                 >
-                    <Text style={{ fontSize: 32, color: 'white', lineHeight: 28, fontFamily: 'OpenSans_700Bold' }}>...</Text>
+                    <Text style={{ fontSize: 32, color: colors.text, lineHeight: 28, fontFamily: getFont('OpenSans_700Bold') }}>...</Text>
                 </TouchableOpacity>
             </Animated.View>
 
@@ -357,16 +394,16 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                             />
                             {/* Close button */}
                             <TouchableOpacity style={{ position: 'absolute', top: insets.top + 20, right: 20, zIndex: 10 }} onPress={() => setFullScreenPhotoIndex(null)}>
-                                <View style={styles.circleButton}>
-                                    <Ionicons name="close" size={24} color="white" />
+                                <View style={[styles.circleButton, { borderColor: colors.white }]}>
+                                    <Ionicons name="close" size={24} color={colors.white} />
                                 </View>
                             </TouchableOpacity>
 
                             {/* Left Arrow */}
                             {fullScreenPhotoIndex > 0 && (
                                 <TouchableOpacity style={{ position: 'absolute', left: 20, top: '50%', transform: [{ translateY: -24 }], zIndex: 10 }} onPress={() => setFullScreenPhotoIndex(fullScreenPhotoIndex - 1)}>
-                                    <View style={styles.circleButton}>
-                                        <Ionicons name="chevron-back" size={24} color="white" />
+                                    <View style={[styles.circleButton, { borderColor: colors.white }]}>
+                                        <Ionicons name="chevron-back" size={24} color={colors.white} />
                                     </View>
                                 </TouchableOpacity>
                             )}
@@ -374,8 +411,8 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                             {/* Right Arrow */}
                             {fullScreenPhotoIndex < details.photos.length - 1 && (
                                 <TouchableOpacity style={{ position: 'absolute', right: 20, top: '50%', transform: [{ translateY: -24 }], zIndex: 10 }} onPress={() => setFullScreenPhotoIndex(fullScreenPhotoIndex + 1)}>
-                                    <View style={styles.circleButton}>
-                                        <Ionicons name="chevron-forward" size={24} color="white" />
+                                    <View style={[styles.circleButton, { borderColor: colors.white }]}>
+                                        <Ionicons name="chevron-forward" size={24} color={colors.white} />
                                     </View>
                                 </TouchableOpacity>
                             )}
@@ -394,7 +431,6 @@ const styles = StyleSheet.create({
         left: 0,
         width: '100%',
         height: '100%',
-        backgroundColor: '#000',
         zIndex: 100,
     },
     pivotHeaderContainer: {
@@ -404,7 +440,6 @@ const styles = StyleSheet.create({
     },
     pivotHeaderItem: {
         fontSize: normalizeFont(60),
-        fontFamily: 'OpenSans_300Light',
         fontWeight: '200',
         lineHeight: normalizeFont(70),
         letterSpacing: -1,
@@ -417,7 +452,6 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: '#1f1f1f',
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: horizontalScale(16),
@@ -433,7 +467,6 @@ const styles = StyleSheet.create({
         height: horizontalScale(48),
         borderRadius: horizontalScale(24),
         borderWidth: 2,
-        borderColor: '#fff',
         alignItems: 'center',
         justifyContent: 'center',
     }

@@ -35,7 +35,8 @@ export default {
                     },
                     "imageWidth": 680
                 }
-            ]
+            ],
+            "expo-build-properties"
         ],
         scheme: "metromap",
         ios: {

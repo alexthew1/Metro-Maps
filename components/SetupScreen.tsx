@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
 import { MetroButton } from './MetroButton';
-import { setGoogleApiKey } from '../services/api';
 import { SettingsService, UnitsType } from '../services/settings';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, withDelay } from 'react-native-reanimated';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { TouchableOpacity } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, withDelay, interpolate, interpolateColor } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
+import { useCustomFont } from '../contexts/FontContext';
+import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 
 interface SetupScreenProps {
     onComplete: () => void;
@@ -32,147 +33,293 @@ const FadeInView = ({ children, delay = 0, style }: any) => {
     return <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>;
 };
 
+function MetroToggle({ value, onValueChange, colors }: { value: boolean, onValueChange: (val: boolean) => void, colors: typeof Colors.light }) {
+    const progress = useSharedValue(value ? 1 : 0);
+
+    useEffect(() => {
+        progress.value = withTiming(value ? 1 : 0, { duration: 200 });
+    }, [value]);
+
+    const toggleWidth = 80;
+    const toggleHeight = 32;
+    const borderWidth = 2;
+    const gap = 2;
+    const handleWidth = 14;
+
+    const innerWidth = toggleWidth - (borderWidth * 2);
+    
+    const handleMinLeft = gap;
+    const handleMaxLeft = innerWidth - gap - handleWidth;
+    const fillMaxWidth = handleMaxLeft - (gap * 2);
+
+    const borderColorAnimated = useAnimatedStyle(() => {
+        return {
+            borderColor: interpolateColor(progress.value, [0, 1], [colors.textDim, colors.text])
+        };
+    });
+
+    const handleColorAnimated = useAnimatedStyle(() => {
+        return {
+            backgroundColor: interpolateColor(progress.value, [0, 1], [colors.textDim, colors.text])
+        };
+    });
+
+    const fillStyle = useAnimatedStyle(() => {
+        return {
+            width: interpolate(progress.value, [0, 1], [0, fillMaxWidth]),
+            backgroundColor: colors.accent,
+            height: toggleHeight - (borderWidth * 2) - (gap * 2),
+            marginLeft: gap,
+            marginTop: gap,
+        };
+    });
+
+    const handleStyle = useAnimatedStyle(() => {
+        return {
+            left: interpolate(progress.value, [0, 1], [handleMinLeft, handleMaxLeft]),
+        };
+    });
+
+    return (
+        <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => onValueChange(!value)}
+            style={{ position: 'absolute', right: 0, top: verticalScale(10), width: toggleWidth, height: toggleHeight, justifyContent: 'center' }}
+        >
+            <Animated.View style={[{
+                width: toggleWidth,
+                height: toggleHeight,
+                borderWidth: borderWidth,
+                backgroundColor: 'transparent',
+            }, borderColorAnimated]}>
+                <Animated.View style={fillStyle} />
+                <Animated.View style={[{
+                    position: 'absolute',
+                    width: handleWidth,
+                    height: toggleHeight - (borderWidth * 2) - (gap * 2),
+                    top: gap,
+                }, handleColorAnimated, handleStyle]} />
+            </Animated.View>
+        </TouchableOpacity>
+    );
+}
+
 export function SetupScreen({ onComplete }: SetupScreenProps) {
     const insets = useSafeAreaInsets();
-    const [apiKey, setApiKey] = useState('');
     const [error, setError] = useState('');
     const [units, setUnits] = useState<UnitsType>('metric');
     const [zoomEnabled, setZoomEnabled] = useState(false);
 
-    const handleSave = async () => {
-        const key = apiKey.trim();
-        if (!key || key.length < 30) {
-            setError('Please enter a valid Google Maps API Key.');
-            return;
-        }
-        
-        const restrictedKey = process.env.EXPO_PUBLIC_RESTRICTED_API_KEY;
-        if (restrictedKey && key === restrictedKey) {
-            setError('Please use your own personal API key. This is a restricted test key.');
-            return;
-        }
+    const [langExpanded, setLangExpanded] = useState(false);
+    const [themeExpanded, setThemeExpanded] = useState(false);
+    const [unitsExpanded, setUnitsExpanded] = useState(false);
 
+    const { t, i18n } = useTranslation();
+    const { themeMode, setThemeMode, colors } = useTheme();
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
+
+    const handleSave = async () => {
         try {
-            await AsyncStorage.setItem('USER_GOOGLE_API_KEY', key);
-            setGoogleApiKey(key);
-            
+            await AsyncStorage.setItem('SETUP_COMPLETE', 'true');
             await SettingsService.setUnits(units);
             await SettingsService.setZoomControls(zoomEnabled);
-
             onComplete();
         } catch (e) {
-            setError('Failed to save settings. Please try again.');
+            setError(t('Failed to save settings. Please try again.'));
         }
     };
 
     return (
         <KeyboardAvoidingView 
-            style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 20) }]}
+            style={[styles.container, { backgroundColor: colors.background }]}
             behavior="padding"
         >
-            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+            <ScrollView 
+                contentContainerStyle={[
+                    styles.scrollContent, 
+                    { 
+                        paddingTop: insets.top + 40,
+                        paddingBottom: insets.bottom + 120 // Extra padding so scroll content clears the fixed bottom button
+                    }
+                ]} 
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
                 <FadeInView delay={0}>
                     <View style={styles.headerContainer}>
-                        <Text style={[GlobalStyles.metroXL, styles.title]}>MetroMaps</Text>
-                        <Text style={[GlobalStyles.metroMD, styles.subtitle]}>Setup your API Key</Text>
+                        <Text style={[GlobalStyles.metroXL, styles.title, { color: colors.text, fontFamily: getFont('OpenSans_300Light') }]}>MetroMaps</Text>
+                        <Text style={[GlobalStyles.metroMD, styles.subtitle, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Setup your preferences')}</Text>
                     </View>
                 </FadeInView>
                 
                 <View style={styles.instructionsContainer}>
                     <FadeInView delay={200}>
-                        <Text style={[GlobalStyles.metroMD, styles.instructionText, { marginBottom: 25, color: 'white' }]}>
-                            To use this app, you must provide your own Google Maps API Key. 
+                        <Text style={[GlobalStyles.metroMD, styles.instructionText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
+                            {t('Welcome to MetroMaps. Please configure your preferences below.')}
                         </Text>
                     </FadeInView>
-                    
-                    <FadeInView delay={400}>
-                        <Text style={[GlobalStyles.metroLG, styles.stepTitle]}>How to get a key:</Text>
-                    </FadeInView>
-                    
-                    <FadeInView delay={600}>
-                        <View style={styles.stepRow}>
-                            <MaterialCommunityIcons name="google-cloud" size={24} color={Colors.accent} style={styles.stepIcon} />
-                            <Text style={[GlobalStyles.metroSM, styles.instructionText]}>Go to the Google Cloud Console and create a new project.</Text>
-                        </View>
-                    </FadeInView>
-
-                    <FadeInView delay={700}>
-                        <View style={styles.stepRow}>
-                            <MaterialCommunityIcons name="api" size={24} color={Colors.accent} style={styles.stepIcon} />
-                            <View style={{ flex: 1 }}>
-                                <Text style={[GlobalStyles.metroSM, styles.instructionText]}>Enable the following APIs:</Text>
-                                <Text style={[GlobalStyles.metroSM, styles.bulletPoint]}>• Places API (New & Legacy)</Text>
-                                <Text style={[GlobalStyles.metroSM, styles.bulletPoint]}>• Routes API</Text>
-                                <Text style={[GlobalStyles.metroSM, styles.bulletPoint]}>• Maps SDK for Android & iOS</Text>
-                            </View>
-                        </View>
-                    </FadeInView>
-
-                    <FadeInView delay={800}>
-                        <View style={styles.stepRow}>
-                            <MaterialCommunityIcons name="key" size={24} color={Colors.accent} style={styles.stepIcon} />
-                            <Text style={[GlobalStyles.metroSM, styles.instructionText]}>Create an API Key under Credentials and paste it below.</Text>
-                        </View>
-                    </FadeInView>
                 </View>
-                <FadeInView delay={900} style={styles.settingsSection}>
-                    <Text style={[GlobalStyles.metroMD, styles.inputLabel, { color: 'white', marginBottom: 15 }]}>Preferences</Text>
+
+                <FadeInView delay={500} style={styles.settingsSection}>
                     
+                    {/* Language Setting */}
+                    <View style={[styles.settingRow, { marginTop: 20 }]}>
+                        <Text style={[styles.settingLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Language')}</Text>
+                        <TouchableOpacity
+                            style={[styles.inputBox, { borderColor: colors.border }, langExpanded && { borderBottomColor: 'transparent' }]}
+                            onPress={() => setLangExpanded(!langExpanded)}
+                        >
+                            <Text style={[styles.inputText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
+                                {i18n.language === 'es' ? 'Español' : i18n.language === 'ja' ? '日本語' : i18n.language === 'pt' ? 'Português' : 'English'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {langExpanded && (
+                            <View style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                                {i18n.language !== 'en' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { i18n.changeLanguage('en'); setLangExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>English</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {i18n.language !== 'es' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { i18n.changeLanguage('es'); setLangExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>Español</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {i18n.language !== 'ja' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { i18n.changeLanguage('ja'); setLangExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>日本語</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {i18n.language !== 'pt' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { i18n.changeLanguage('pt'); setLangExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>Português</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Theme Setting */}
                     <View style={styles.settingRow}>
-                        <Text style={[GlobalStyles.metroSM, { color: '#ccc', flex: 1 }]}>Distance Units</Text>
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <TouchableOpacity onPress={() => setUnits('imperial')} style={[styles.pill, units === 'imperial' && styles.pillActive]}>
-                                <Text style={styles.pillText}>Imp</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setUnits('metric')} style={[styles.pill, units === 'metric' && styles.pillActive]}>
-                                <Text style={styles.pillText}>Met</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setUnits('imperial_uk')} style={[styles.pill, units === 'imperial_uk' && styles.pillActive]}>
-                                <Text style={styles.pillText}>UK</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <Text style={[styles.settingLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Theme')}</Text>
+                        <TouchableOpacity
+                            style={[styles.inputBox, { borderColor: colors.border }, themeExpanded && { borderBottomColor: 'transparent' }]}
+                            onPress={() => setThemeExpanded(!themeExpanded)}
+                        >
+                            <Text style={[styles.inputText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
+                                {themeMode === 'light' ? t('Light') : themeMode === 'dark' ? t('Dark') : t('System')}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {themeExpanded && (
+                            <View style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                                {themeMode !== 'system' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { setThemeMode('system'); setThemeExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('System')}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {themeMode !== 'light' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { setThemeMode('light'); setThemeExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Light')}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {themeMode !== 'dark' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { setThemeMode('dark'); setThemeExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Dark')}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
                     </View>
 
-                    <View style={[styles.settingRow, { marginTop: 15, marginBottom: 25 }]}>
-                        <Text style={[GlobalStyles.metroSM, { color: '#ccc', flex: 1 }]}>Map Zoom Controls</Text>
-                        <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <TouchableOpacity onPress={() => setZoomEnabled(true)} style={[styles.pill, zoomEnabled && styles.pillActive]}>
-                                <Text style={styles.pillText}>On</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setZoomEnabled(false)} style={[styles.pill, !zoomEnabled && styles.pillActive]}>
-                                <Text style={styles.pillText}>Off</Text>
-                            </TouchableOpacity>
-                        </View>
+                    {/* Units Setting */}
+                    <View style={styles.settingRow}>
+                        <Text style={[styles.settingLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Distance Units')}</Text>
+                        <TouchableOpacity
+                            style={[styles.inputBox, { borderColor: colors.border }, unitsExpanded && { borderBottomColor: 'transparent' }]}
+                            onPress={() => setUnitsExpanded(!unitsExpanded)}
+                        >
+                            <Text style={[styles.inputText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
+                                {units === 'metric' ? t('metric') : units === 'imperial' ? t('imperial') : t('imperial UK')}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {unitsExpanded && (
+                            <View style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                                {units !== 'metric' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { setUnits('metric'); setUnitsExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('metric')}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {units !== 'imperial' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { setUnits('imperial'); setUnitsExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('imperial')}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {units !== 'imperial_uk' && (
+                                    <TouchableOpacity
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { setUnits('imperial_uk'); setUnitsExpanded(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('imperial UK')}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
                     </View>
+
+                    {/* Zoom Controls Setting */}
+                    <View style={[styles.settingRow, { position: 'relative', minHeight: verticalScale(50) }]}>
+                        <Text style={[styles.settingLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular'), fontSize: normalizeFont(15), marginBottom: verticalScale(2) }]}>{t('Map Zoom Controls')}</Text>
+                        <Text style={[styles.settingValue, { color: colors.text, fontFamily: getFont('OpenSans_400Regular'), fontSize: normalizeFont(22), textAlign: 'left', marginRight: 0, flex: undefined }]}>{zoomEnabled ? t("On") : t("Off")}</Text>
+                        <MetroToggle value={zoomEnabled} onValueChange={setZoomEnabled} colors={colors} />
+                    </View>
+
                 </FadeInView>
-
             </ScrollView>
 
-            <FadeInView delay={1000} style={styles.bottomContainer}>
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        style={[styles.input, error ? styles.inputError : null]}
-                        placeholder="Paste API Key (AIzaSy...)"
-                        placeholderTextColor="#666"
-                        value={apiKey}
-                        onChangeText={(text) => {
-                            setApiKey(text);
-                            setError('');
-                        }}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                    />
-                    {error ? <Text style={[GlobalStyles.metroSM, styles.errorText]}>{error}</Text> : null}
-                </View>
-
+            {/* Fixed Bottom Button Area */}
+            <FadeInView delay={900} style={[styles.bottomContainer, { backgroundColor: colors.background, paddingBottom: Math.max(insets.bottom, 20) }]}>
+                {error ? <Text style={[GlobalStyles.metroSM, styles.errorText, { fontFamily: getFont('OpenSans_400Regular') }]}>{error}</Text> : null}
                 <MetroButton 
-                    title="Save & Continue" 
+                    title={t("Save & Continue")} 
                     onPress={handleSave} 
                 />
-
-                <Text style={[GlobalStyles.metroSM, styles.disclaimer]}>
-                    * This key is stored securely on your device and sent directly to Google.
-                </Text>
             </FadeInView>
         </KeyboardAvoidingView>
     );
@@ -181,114 +328,85 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
         zIndex: 9999,
     },
     scrollContent: {
-        padding: 24,
+        paddingHorizontal: 24,
         flexGrow: 1,
         justifyContent: 'flex-start',
-        paddingTop: 40,
-    },
-    bottomContainer: {
-        padding: 24,
-        paddingTop: 10,
-        backgroundColor: Colors.background,
     },
     headerContainer: {
         alignItems: 'flex-start',
-        marginBottom: 40,
+        marginBottom: 20,
     },
     title: {
-        color: 'white',
         lineHeight: 62,
     },
     subtitle: {
-        color: Colors.accent,
         marginTop: -5,
     },
     instructionsContainer: {
-        paddingLeft: 5,
         marginBottom: 20,
-    },
-    stepTitle: {
-        color: 'white',
-        marginBottom: 20,
-    },
-    stepRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginBottom: 20,
-    },
-    stepIcon: {
-        marginRight: 15,
-        marginTop: 2,
     },
     instructionText: {
-        color: '#ccc',
         lineHeight: 28,
-        flex: 1,
-    },
-    bulletPoint: {
-        color: '#aaa',
-        marginLeft: 0,
-        marginTop: 4,
-        lineHeight: 26,
-    },
-    inputContainer: {
-        marginBottom: 25,
-    },
-    input: {
-        backgroundColor: 'white',
-        borderColor: Colors.accent,
-        borderWidth: 2,
-        height: 50,
-        paddingHorizontal: 15,
-        fontFamily: 'OpenSans_400Regular',
-        fontSize: 20,
-        color: 'black',
-    },
-    inputError: {
-        borderColor: '#ff4444',
-    },
-    errorText: {
-        color: '#ff4444',
-        marginTop: 8,
-        marginLeft: 5,
-    },
-    disclaimer: {
-        color: '#555',
-        marginTop: 25,
-        textAlign: 'center',
-        fontSize: 12,
     },
     settingsSection: {
-        marginTop: 20,
-        marginBottom: 20,
+        marginTop: 10,
     },
     settingRow: {
+        marginBottom: 25,
+    },
+    settingRowToggle: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 10,
+        marginBottom: 40,
     },
-    pill: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderWidth: 1,
-        borderColor: '#444',
-        backgroundColor: '#111',
+    settingLabel: {
+        fontSize: normalizeFont(18),
+        marginBottom: verticalScale(10),
     },
-    pillActive: {
-        backgroundColor: Colors.accent,
-        borderColor: Colors.accent,
+    settingValue: {
+        fontSize: normalizeFont(18),
+        marginRight: 15,
+        flex: 1,
+        textAlign: 'right',
     },
-    pillText: {
-        color: 'white',
-        fontFamily: 'OpenSans_400Regular',
-        fontSize: 14,
+    inputBox: {
+        borderWidth: 2,
+        paddingVertical: verticalScale(12),
+        paddingHorizontal: horizontalScale(15),
     },
-    inputLabel: {
-        color: '#999',
-    }
+    inputText: {
+        fontSize: normalizeFont(22),
+    },
+    inlineDropdown: {
+        borderWidth: 2,
+        borderTopWidth: 0,
+    },
+    dropdownItem: {
+        paddingVertical: verticalScale(15),
+        paddingHorizontal: horizontalScale(15),
+        borderBottomWidth: 1,
+    },
+    dropdownItemSelected: {
+        backgroundColor: 'rgba(128,128,128,0.1)',
+    },
+    dropdownText: {
+        fontSize: normalizeFont(20),
+    },
+    bottomContainer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        paddingHorizontal: 24,
+        paddingTop: 15,
+    },
+    errorText: {
+        color: '#ff4444',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
 });

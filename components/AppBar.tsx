@@ -6,6 +6,9 @@ import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useCustomFont } from '../contexts/FontContext';
 
 interface AppBarProps {
     hidden: boolean;
@@ -25,6 +28,17 @@ const ICON_SIZE = 48;
 export function AppBar({ hidden, expanded, onExpandChange, onSearchPress, onLocatePress, onFavoritesPress, onSettingsPress, onAboutPress, onDirectionsPress }: AppBarProps) {
     const insets = useSafeAreaInsets();
     const screenHeight = Dimensions.get('window').height;
+    
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
 
     // Animation Values
     const expandProgress = useSharedValue(expanded ? 1 : 0);
@@ -37,9 +51,6 @@ export function AppBar({ hidden, expanded, onExpandChange, onSearchPress, onLoca
     }, [expanded]);
 
     // Derived Heights
-    // Collapsed: just the bar + bottom inset
-    // Expanded: Let's say 60% of screen or auto-size based on content? 
-    // Metro usually went up to show the list. Let's use a fixed large height for now or count items.
     const expandedHeight = 380 + insets.bottom; // Enough for menu items + safe area
     const totalCollapsedHeight = BAR_HEIGHT_COLLAPSED + insets.bottom;
 
@@ -55,7 +66,6 @@ export function AppBar({ hidden, expanded, onExpandChange, onSearchPress, onLoca
                     }),
                 },
             ],
-            // Also need to adjust background opacity if we wanted glass effect, but solid black is requested
         };
     }, [hidden, totalCollapsedHeight, expandedHeight]);
 
@@ -68,7 +78,7 @@ export function AppBar({ hidden, expanded, onExpandChange, onSearchPress, onLoca
     });
 
     return (
-        <Animated.View style={[styles.container, animatedStyle]}>
+        <Animated.View style={[styles.container, animatedStyle, { backgroundColor: colors.appBarBg }]}>
 
             {/* Main Bar Row (Always Visible, but labels animate) */}
             <View style={[styles.iconRow, { marginTop: 12 }]}>
@@ -76,30 +86,36 @@ export function AppBar({ hidden, expanded, onExpandChange, onSearchPress, onLoca
                 <View style={styles.centerIcons}>
                     <AppBarButton
                         onPress={onSearchPress}
-                        label="search"
+                        label={t("search")}
                         expandProgress={expandProgress}
+                        colors={colors}
+                        getFont={getFont}
                     >
-                        <Svg width={24} height={24} fill="white" viewBox="0 0 24 24">
+                        <Svg width={24} height={24} fill={colors.text} viewBox="0 0 24 24">
                             <Path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
                         </Svg>
                     </AppBarButton>
 
                     <AppBarButton
                         onPress={onLocatePress}
-                        label="center"
+                        label={t("center")}
                         expandProgress={expandProgress}
+                        colors={colors}
+                        getFont={getFont}
                     >
-                        <Svg width={24} height={24} fill="white" viewBox="0 0 24 24">
+                        <Svg width={24} height={24} fill={colors.text} viewBox="0 0 24 24">
                             <Path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
                         </Svg>
                     </AppBarButton>
 
                     <AppBarButton
                         onPress={onFavoritesPress}
-                        label="places"
+                        label={t("places")}
                         expandProgress={expandProgress}
+                        colors={colors}
+                        getFont={getFont}
                     >
-                        <MaterialCommunityIcons name="star-outline" size={24} color="white" />
+                        <MaterialCommunityIcons name="star-outline" size={24} color={colors.text} />
                     </AppBarButton>
                 </View>
 
@@ -109,17 +125,16 @@ export function AppBar({ hidden, expanded, onExpandChange, onSearchPress, onLoca
                     onPress={() => onExpandChange(!expanded)}
                     style={styles.dotsButton}
                 >
-                    <MaterialCommunityIcons name="dots-horizontal" size={28} color="white" />
+                    <MaterialCommunityIcons name="dots-horizontal" size={28} color={colors.text} />
                 </TouchableOpacity>
             </View>
 
             {/* Menu Items (Visible when expanded) */}
             <Animated.View style={[styles.menuList, expandedContentStyle]}>
-                <MenuItem label="directions" onPress={() => { onExpandChange(false); onDirectionsPress(); }} />
-                {/* download maps removed */}
-                <MenuItem label="settings" onPress={() => { onExpandChange(false); onSettingsPress(); }} />
-                <MenuItem label="feedback" onPress={() => { onExpandChange(false); Linking.openURL('mailto:metromapsdev@gmail.com?subject=MetroMaps Feedback'); }} />
-                <MenuItem label="about" onPress={() => { onExpandChange(false); onAboutPress(); }} />
+                <MenuItem label={t("directions")} onPress={() => { onExpandChange(false); onDirectionsPress(); }} colors={colors} getFont={getFont} />
+                <MenuItem label={t("settings")} onPress={() => { onExpandChange(false); onSettingsPress(); }} colors={colors} getFont={getFont} />
+                <MenuItem label={t("feedback")} onPress={() => { onExpandChange(false); Linking.openURL('mailto:metromapsdev@gmail.com?subject=MetroMaps Feedback'); }} colors={colors} getFont={getFont} />
+                <MenuItem label={t("about")} onPress={() => { onExpandChange(false); onAboutPress(); }} colors={colors} getFont={getFont} />
             </Animated.View>
 
         </Animated.View>
@@ -127,7 +142,7 @@ export function AppBar({ hidden, expanded, onExpandChange, onSearchPress, onLoca
 }
 
 // Button that shows label ONLY when expanded
-function AppBarButton({ children, onPress, label, expandProgress }: { children: React.ReactNode; onPress: () => void; label: string, expandProgress: SharedValue<number> }) {
+function AppBarButton({ children, onPress, label, expandProgress, colors, getFont }: { children: React.ReactNode; onPress: () => void; label: string, expandProgress: SharedValue<number>, colors: any, getFont: (f: string) => string }) {
 
     const labelStyle = useAnimatedStyle(() => {
         return {
@@ -138,18 +153,18 @@ function AppBarButton({ children, onPress, label, expandProgress }: { children: 
 
     return (
         <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={styles.btnContainer}>
-            <View style={styles.circleIcon}>
+            <View style={[styles.circleIcon, { borderColor: colors.text }]}>
                 {children}
             </View>
-            <Animated.Text style={[styles.label, labelStyle]}>{label}</Animated.Text>
+            <Animated.Text style={[styles.label, labelStyle, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{label}</Animated.Text>
         </TouchableOpacity>
     );
 }
 
-function MenuItem({ label, onPress }: { label: string, onPress: () => void }) {
+function MenuItem({ label, onPress, colors, getFont }: { label: string, onPress: () => void, colors: any, getFont: (f: string) => string }) {
     return (
         <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={styles.menuItem}>
-            <Text style={GlobalStyles.metroMD}>{label}</Text>
+            <Text style={[GlobalStyles.metroMD, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{label}</Text>
         </TouchableOpacity>
     );
 }
@@ -160,7 +175,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         width: '100%',
-        backgroundColor: '#1f1f1f',
+        // Background color now set dynamically
         overflow: 'hidden', // Clip content during animation
         zIndex: 60,
     },
@@ -192,15 +207,14 @@ const styles = StyleSheet.create({
         height: 48,
         borderRadius: 24,
         borderWidth: 2,
-        borderColor: 'white',
+        // Border color now set dynamically
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 4,
     },
     label: {
-        color: '#c4c4c4',
         fontSize: 12,
-        fontFamily: 'OpenSans_400Regular',
+        // Color and fontFamily now set dynamically
         textAlign: 'center',
     },
     menuList: {

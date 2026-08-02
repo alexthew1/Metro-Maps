@@ -3,6 +3,9 @@ import React, { useEffect } from 'react';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useCustomFont } from '../contexts/FontContext';
 
 interface AboutSheetProps {
     visible: boolean;
@@ -11,6 +14,17 @@ interface AboutSheetProps {
 
 export function AboutSheet({ visible, onClose }: AboutSheetProps) {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        if (defaultFont.includes('700Bold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
 
     const animatedStyle = useAnimatedStyle(() => {
         return {
@@ -33,38 +47,38 @@ export function AboutSheet({ visible, onClose }: AboutSheetProps) {
     }, [visible, onClose]);
 
     return (
-        <Animated.View style={[styles.container, animatedStyle, { paddingTop: insets.top }]}>
+        <Animated.View style={[styles.container, animatedStyle, { paddingTop: insets.top, backgroundColor: colors.background }]}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.appName}>MetroMaps</Text>
-                <Text style={styles.title}>about</Text>
+                <Text style={[styles.appName, { color: colors.textDim, fontFamily: getFont('OpenSans_600SemiBold') }]}>MetroMaps</Text>
+                <Text style={[styles.title, { color: colors.text, fontFamily: getFont('OpenSans_300Light') }]}>{t('about')}</Text>
             </View>
 
             <View style={styles.content}>
                 <View style={styles.infoRow}>
-                    <Text style={styles.label}>Version</Text>
-                    <Text style={styles.value}>1.4</Text>
+                    <Text style={[styles.label, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Version')}</Text>
+                    <Text style={[styles.value, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>1.4</Text>
                 </View>
 
                 <View style={styles.infoRow}>
-                    <Text style={styles.label}>Creator</Text>
-                    <Text style={styles.value}>Alexander Batchler</Text>
+                    <Text style={[styles.label, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Creator')}</Text>
+                    <Text style={[styles.value, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>Alexander Batchler</Text>
                 </View>
 
                 <View style={styles.infoRow}>
-                    <Text style={styles.label}>License</Text>
-                    <Text style={styles.value}>MIT License</Text>
+                    <Text style={[styles.label, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('License')}</Text>
+                    <Text style={[styles.value, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>MIT License</Text>
                 </View>
 
                 <View style={[styles.infoRow, { marginTop: verticalScale(30) }]}>
-                    <Text style={styles.description}>
-                        MetroMaps is a Windows Phone inspired mapping application bringing the classic Metro design language to modern devices.
+                    <Text style={[styles.description, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>
+                        {t('MetroMaps is a Windows Phone inspired mapping application bringing the classic Metro design language to modern devices.')}
                     </Text>
                 </View>
             </View>
 
-            <TouchableOpacity style={[styles.backButton, { marginBottom: insets.bottom + 20 }]} onPress={onClose}>
-                <Text style={styles.backButtonText}>back</Text>
+            <TouchableOpacity style={[styles.backButton, { marginBottom: insets.bottom + 20, borderColor: colors.text }]} onPress={onClose}>
+                <Text style={[styles.backButtonText, { color: colors.text, fontFamily: getFont('OpenSans_600SemiBold') }]}>{t('back')}</Text>
             </TouchableOpacity>
         </Animated.View>
     );
@@ -73,7 +87,6 @@ export function AboutSheet({ visible, onClose }: AboutSheetProps) {
 const styles = StyleSheet.create({
     container: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#000000',
         zIndex: 80,
     },
     header: {
@@ -82,17 +95,13 @@ const styles = StyleSheet.create({
         marginTop: verticalScale(10),
     },
     appName: {
-        fontFamily: 'OpenSans_600SemiBold',
         fontSize: normalizeFont(12),
-        color: '#999',
         textTransform: 'uppercase',
         letterSpacing: 1,
         marginBottom: verticalScale(5),
     },
     title: {
-        fontFamily: 'OpenSans_300Light',
         fontSize: normalizeFont(42),
-        color: 'white',
     },
     content: {
         paddingHorizontal: horizontalScale(20),
@@ -101,20 +110,14 @@ const styles = StyleSheet.create({
         marginBottom: verticalScale(20),
     },
     label: {
-        fontFamily: 'OpenSans_400Regular',
         fontSize: normalizeFont(14),
-        color: '#999',
         marginBottom: verticalScale(4),
     },
     value: {
-        fontFamily: 'OpenSans_400Regular',
         fontSize: normalizeFont(24),
-        color: 'white',
     },
     description: {
-        fontFamily: 'OpenSans_400Regular',
         fontSize: normalizeFont(14),
-        color: '#999',
         lineHeight: normalizeFont(22),
     },
     backButton: {
@@ -123,13 +126,10 @@ const styles = StyleSheet.create({
         left: horizontalScale(20),
         right: horizontalScale(20),
         borderWidth: 2,
-        borderColor: 'white',
         paddingVertical: verticalScale(12),
         alignItems: 'center',
     },
     backButtonText: {
-        color: 'white',
-        fontFamily: 'OpenSans_600SemiBold',
         fontSize: normalizeFont(16),
     }
 });

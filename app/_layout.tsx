@@ -1,12 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
-import { View, Platform, StatusBar, StyleSheet } from 'react-native';
-import { GlobalStyles } from '../constants/Styles';
+import { View, Platform, StatusBar, StyleSheet, useColorScheme } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SetupScreen } from '../components/SetupScreen';
-import { setGoogleApiKey } from '../services/api';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -14,12 +12,16 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { useFonts, OpenSans_300Light, OpenSans_400Regular, OpenSans_600SemiBold, OpenSans_700Bold } from '@expo-google-fonts/open-sans';
 import * as SplashScreen from 'expo-splash-screen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import '../locales/i18n';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { FontProvider } from '../contexts/FontContext';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 function StatusBarBackground() {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
     return (
         <View style={{
             position: 'absolute',
@@ -27,7 +29,7 @@ function StatusBarBackground() {
             left: 0,
             right: 0,
             height: insets.top,
-            backgroundColor: 'black',
+            backgroundColor: colors.background,
             zIndex: 9999
         }} />
     );
@@ -35,6 +37,7 @@ function StatusBarBackground() {
 
 function NavigationBarBackground() {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
     return (
         <View style={{
             position: 'absolute',
@@ -42,28 +45,21 @@ function NavigationBarBackground() {
             left: 0,
             right: 0,
             height: insets.bottom,
-            backgroundColor: 'black',
+            backgroundColor: colors.background,
             zIndex: 9999
         }} />
     );
 }
 
-export default function RootLayout() {
-    const [fontsLoaded] = useFonts({
-        OpenSans_300Light,
-        OpenSans_400Regular,
-        OpenSans_600SemiBold,
-        OpenSans_700Bold,
-    });
+function AppContent() {
+    const { colors, isDark } = useTheme();
     const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
     useEffect(() => {
         async function checkApiKey() {
             try {
-                const storedKey = await AsyncStorage.getItem('USER_GOOGLE_API_KEY');
-                const restrictedKey = process.env.EXPO_PUBLIC_RESTRICTED_API_KEY;
-                if (storedKey && (!restrictedKey || storedKey !== restrictedKey)) {
-                    setGoogleApiKey(storedKey);
+                const setupComplete = await AsyncStorage.getItem('SETUP_COMPLETE');
+                if (setupComplete === 'true') {
                     setHasApiKey(true);
                 } else {
                     setHasApiKey(false);
@@ -81,30 +77,24 @@ export default function RootLayout() {
 
         // Configure System Navigation Bar (Android)
         if (Platform.OS === 'android') {
-            NavigationBar.setBackgroundColorAsync("black");
-            NavigationBar.setButtonStyleAsync("light");
-            StatusBar.setBackgroundColor('black');
-            StatusBar.setBarStyle('light-content');
+            NavigationBar.setBackgroundColorAsync(colors.background);
+            NavigationBar.setButtonStyleAsync(isDark ? "light" : "dark");
+            StatusBar.setBackgroundColor(colors.background);
+            StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content');
         }
-    }, []);
+    }, [isDark, colors]);
 
-    useEffect(() => {
-        if (fontsLoaded) {
-            SplashScreen.hideAsync();
-        }
-    }, [fontsLoaded]);
-
-    if (!fontsLoaded || hasApiKey === null) {
+    if (hasApiKey === null) {
         return null;
     }
 
     return (
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000' }}>
+        <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
             <ErrorBoundary>
-                <View style={{ flex: 1, backgroundColor: Colors.background }}>
+                <View style={{ flex: 1, backgroundColor: colors.background }}>
                     <StatusBarBackground />
                     <NavigationBarBackground />
-                    <ExpoStatusBar style="light" />
+                    <ExpoStatusBar style={isDark ? "light" : "dark"} />
 
                     {!hasApiKey ? (
                         <SetupScreen onComplete={() => setHasApiKey(true)} />
@@ -116,5 +106,32 @@ export default function RootLayout() {
                 </View>
             </ErrorBoundary>
         </GestureHandlerRootView>
+    );
+}
+
+export default function RootLayout() {
+    const [fontsLoaded] = useFonts({
+        OpenSans_300Light,
+        OpenSans_400Regular,
+        OpenSans_600SemiBold,
+        OpenSans_700Bold,
+    });
+
+    useEffect(() => {
+        if (fontsLoaded) {
+            SplashScreen.hideAsync();
+        }
+    }, [fontsLoaded]);
+
+    if (!fontsLoaded) {
+        return null;
+    }
+
+    return (
+        <ThemeProvider>
+            <FontProvider>
+                <AppContent />
+            </FontProvider>
+        </ThemeProvider>
     );
 }

@@ -10,6 +10,9 @@ import { MetroButton } from './MetroButton';
 import * as Speech from 'expo-speech';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, Easing } from 'react-native-reanimated';
+import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import { useCustomFont } from '../contexts/FontContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -26,6 +29,17 @@ interface ActiveNavigationProps {
 
 export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowing, onRecenter, mapHeading = 0, useMiles = true, onRecalculate }: ActiveNavigationProps) {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        if (defaultFont.includes('700Bold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
 
     // -- STATE --
     const [stepIndex, setStepIndex] = React.useState(0);
@@ -163,7 +177,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                 if (!hasArrivedRef.current) {
                     hasArrivedRef.current = true;
                     Speech.stop();
-                    Speech.speak("You have arrived at your destination");
+                    Speech.speak(t("You have arrived at your destination"));
                     
                     // Give the user 5 seconds to hear the message and realize they've arrived 
                     // before abruptly returning to the default map.
@@ -209,7 +223,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     React.useEffect(() => {
         if (!wasRecalculatingRef.current && isRecalculating) {
             Speech.stop();
-            Speech.speak("Recalculating route.", { language: 'en', rate: 0.9 });
+            Speech.speak(t("Recalculating route."), { language: 'en', rate: 0.9 });
         }
         wasRecalculatingRef.current = isRecalculating;
     }, [isRecalculating]);
@@ -230,28 +244,28 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         if (!spokenTriggersRef.current.has('initial') && distMiles > 0.1) {
             triggerToFire = 'initial';
             if (isContinue && distMiles > 1) {
-                 prefix = `Continue for ${Math.round(distMiles)} miles, then `;
+                 prefix = `${t('Continue for')} ${Math.round(distMiles)} ${t('miles')}, ${t('then')} `;
             } else if (distMiles >= 2) {
-                 prefix = `In ${Math.round(distMiles)} miles, `;
+                 prefix = `${t('In')} ${Math.round(distMiles)} ${t('miles')}, `;
             } else if (distMiles >= 0.8) {
-                 prefix = `In one mile, `;
+                 prefix = `${t('In one mile')}, `;
             } else if (distMiles >= 0.4) {
-                 prefix = `In half a mile, `;
+                 prefix = `${t('In half a mile')}, `;
             } else {
-                 prefix = `In ${Math.round(distFeet / 100) * 100} feet, `;
+                 prefix = `${t('In')} ${Math.round(distFeet / 100) * 100} ${t('feet')}, `;
             }
         } else if (distMiles <= 1.05 && distMiles > 0.9 && !spokenTriggersRef.current.has('1mi')) {
             triggerToFire = '1mi';
-            if (!isContinue) prefix = 'In one mile, ';
+            if (!isContinue) prefix = `${t('In one mile')}, `;
         } else if (distMiles <= 0.55 && distMiles > 0.45 && !spokenTriggersRef.current.has('0.5mi')) {
             triggerToFire = '0.5mi';
-            if (!isContinue) prefix = 'In half a mile, ';
+            if (!isContinue) prefix = `${t('In half a mile')}, `;
         } else if (distFeet <= 1000 && distFeet > 800 && !spokenTriggersRef.current.has('1000ft')) {
             triggerToFire = '1000ft';
-            if (!isContinue) prefix = 'In one thousand feet, ';
+            if (!isContinue) prefix = `${t('In one thousand feet')}, `;
         } else if (distFeet <= 500 && distFeet > 300 && !spokenTriggersRef.current.has('500ft')) {
             triggerToFire = '500ft';
-            if (!isContinue) prefix = 'In 500 feet, ';
+            if (!isContinue) prefix = `${t('In')} 500 ${t('feet')}, `;
         } else if (distFeet <= 150 && !spokenTriggersRef.current.has('now')) {
             triggerToFire = 'now';
             prefix = '';
@@ -324,12 +338,12 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     let distDisplay = '';
     if (useMiles) {
         distDisplay = distanceToNext > 160.934
-            ? `${(distanceToNext / 1609.34).toFixed(1)} mi`
-            : `${Math.round(distanceToNext * 3.28084)} ft`;
+            ? `${(distanceToNext / 1609.34).toFixed(1)} ${t('mi')}`
+            : `${Math.round(distanceToNext * 3.28084)} ${t('ft')}`;
     } else {
         distDisplay = distanceToNext > 1000
-            ? `${(distanceToNext / 1000).toFixed(1)} km`
-            : `${Math.round(distanceToNext)} m`;
+            ? `${(distanceToNext / 1000).toFixed(1)} ${t('km')}`
+            : `${Math.round(distanceToNext)} ${t('m')}`;
     }
 
     const durationMin = Math.round(route.duration / 60);
@@ -337,7 +351,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     if (durationMin >= 60) {
         const hrs = Math.floor(durationMin / 60);
         const mins = durationMin % 60;
-        timeDisplay = `${hrs}h ${mins}`;
+        timeDisplay = `${hrs}${t('h')} ${mins}`;
     }
 
     // Speed
@@ -362,7 +376,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
 
             {/* Top Maneuver Bar (Blue) - Nokia Maps Style */}
-            <View style={styles.topBar}>
+            <View style={[styles.topBar, { backgroundColor: '#1a1a3e' }]}>
                 <MaterialCommunityIcons
                     name={iconName}
                     size={50}
@@ -370,10 +384,10 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                     style={{ transform: [{ rotate: activeRotation }], marginRight: 15 }}
                 />
                 <View style={{ flex: 1 }}>
-                    <Text style={styles.maneuverText} numberOfLines={2}>
-                        {nextManeuver?.name || 'Proceed'}
+                    <Text style={[styles.maneuverText, { fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={2}>
+                        {nextManeuver?.name || t('Proceed')}
                     </Text>
-                    <Text style={styles.maneuverDist}>{distDisplay}</Text>
+                    <Text style={[styles.maneuverDist, { fontFamily: getFont('OpenSans_700Bold') }]}>{distDisplay}</Text>
                 </View>
             </View>
 
@@ -386,40 +400,40 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                     <TouchableOpacity
                         onPress={onRecenter}
                         activeOpacity={0.8}
-                        style={[styles.fabButton, { width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2 }]}
+                        style={[styles.fabButton, { width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2, backgroundColor: 'rgba(30, 30, 30, 0.85)', borderColor: '#555' }]}
                     >
-                        <MaterialCommunityIcons name="crosshairs-gps" size={normalizeFont(28)} color="white" />
+                        <MaterialCommunityIcons name="crosshairs-gps" size={normalizeFont(28)} color={colors.text} />
                     </TouchableOpacity>
                 </Animated.View>
             )}
 
             {/* Bottom Dashboard (Black) - Nokia Maps Style - Pull up to expand */}
             <GestureDetector gesture={panGesture}>
-                <Animated.View style={[styles.dashboard, sheetAnimatedStyle, { paddingBottom: insets.bottom + 10, overflow: 'hidden' }]}>
+                <Animated.View style={[styles.dashboard, sheetAnimatedStyle, { paddingBottom: insets.bottom + 10, overflow: 'hidden', backgroundColor: 'black' }]}>
                     {/* Stats Row */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
 
                         {/* Speed + Speed Limit */}
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                             <View style={{ alignItems: 'flex-start' }}>
-                                <Text style={[styles.dashValueLarge, { color: isOverLimit ? '#d55' : 'white' }]}>{currentSpeed}</Text>
-                                <Text style={styles.dashLabel}>{useMiles ? 'mph' : 'km/h'}</Text>
+                                <Text style={[styles.dashValueLarge, { color: isOverLimit ? '#d55' : colors.text, fontFamily: getFont('OpenSans_300Light') }]}>{currentSpeed}</Text>
+                                <Text style={[styles.dashLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>{useMiles ? t('mph') : t('km/h')}</Text>
                             </View>
                             <View style={styles.speedLimitBox}>
-                                <Text style={styles.speedLimitText}>{displayLimit || '--'}</Text>
+                                <Text style={[styles.speedLimitText, { fontFamily: getFont('OpenSans_700Bold') }]}>{displayLimit || '--'}</Text>
                             </View>
                         </View>
 
                         {/* Distance */}
                         <View style={{ alignItems: 'flex-start' }}>
-                            <Text style={styles.dashValue}>{(route.distance / (useMiles ? 1609.34 : 1000)).toFixed(1)}</Text>
-                            <Text style={styles.dashLabel}>{useMiles ? 'mi' : 'km'}</Text>
+                            <Text style={[styles.dashValue, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{(route.distance / (useMiles ? 1609.34 : 1000)).toFixed(1)}</Text>
+                            <Text style={[styles.dashLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>{useMiles ? t('mi') : t('km')}</Text>
                         </View>
 
                         {/* Time Remaining */}
                         <View style={{ alignItems: 'flex-start' }}>
-                            <Text style={styles.dashValue}>{timeDisplay}</Text>
-                            <Text style={styles.dashLabel}>min</Text>
+                            <Text style={[styles.dashValue, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{timeDisplay}</Text>
+                            <Text style={[styles.dashLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>{t('min')}</Text>
                         </View>
 
                     </View>
@@ -427,7 +441,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                     {/* End Navigation Button - Hidden when shrunk, shows instantly on expansion */}
                     {dashboardExpanded && (
                         <View style={{ width: '100%', marginTop: 15 }}>
-                            <MetroButton title="end navigation" variant="outlined" onPress={onStopConfig} />
+                            <MetroButton title={t("end navigation")} variant="outlined" onPress={onStopConfig} />
                         </View>
                     )}
 
@@ -497,7 +511,6 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
     },
     topBar: {
-        backgroundColor: '#1a1a3e',
         paddingVertical: verticalScale(15),
         paddingHorizontal: horizontalScale(20),
         width: '100%',
@@ -506,19 +519,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     maneuverText: {
-        fontFamily: 'OpenSans_400Regular',
         fontSize: normalizeFont(26),
         color: 'white',
         lineHeight: normalizeFont(30),
     },
     maneuverDist: {
-        fontFamily: 'OpenSans_700Bold',
         fontSize: normalizeFont(32),
         color: 'white',
         marginTop: 0,
     },
     dashboard: {
-        backgroundColor: 'black',
         flexDirection: 'column',
         alignItems: 'stretch',
         paddingHorizontal: horizontalScale(20),
@@ -531,20 +541,14 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
     },
     dashValueLarge: {
-        fontFamily: 'OpenSans_300Light',
         fontSize: normalizeFont(48),
-        color: 'white',
         lineHeight: normalizeFont(54),
     },
     dashValue: {
-        fontFamily: 'OpenSans_400Regular',
         fontSize: normalizeFont(28),
-        color: 'white',
     },
     dashLabel: {
-        fontFamily: 'OpenSans_300Light',
         fontSize: normalizeFont(14),
-        color: '#aaa',
         marginTop: verticalScale(-4),
     },
     speedLimitBox: {
@@ -558,7 +562,6 @@ const styles = StyleSheet.create({
     speedLimitText: {
         color: 'black',
         fontSize: normalizeFont(14),
-        fontFamily: 'OpenSans_700Bold',
     },
     fabContainer: {
         position: 'absolute',
@@ -567,11 +570,9 @@ const styles = StyleSheet.create({
         zIndex: 200,
     },
     fabButton: {
-        backgroundColor: 'rgba(30, 30, 30, 0.85)', // Darker, more opaque
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#555',
         elevation: 4,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },

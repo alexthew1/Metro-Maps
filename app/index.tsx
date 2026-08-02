@@ -21,12 +21,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UnitsType } from '../components/SettingsSheet';
 import { AboutSheet } from '../components/AboutSheet';
 import { SettingsService } from '../services/settings';
-import { ApiKeyModal } from '../components/ApiKeyModal';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function HomeScreen() {
+    const { colors } = useTheme();
     // State
     const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number, heading?: number | null, speed?: number | null } | null>(null);
-    const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
     // UI Modes
     const [searchActive, setSearchActive] = useState(false);
@@ -80,11 +80,6 @@ export default function HomeScreen() {
                 setMapRegion(region);
             }
             setHasLoadedRegion(true);
-        });
-        SettingsService.getApiKey().then((key) => {
-            if (key) {
-                setGoogleApiKey(key);
-            }
         });
     }, []);
 
@@ -408,7 +403,7 @@ export default function HomeScreen() {
     const appBarHidden = searchActive || resultsState !== 'hidden' || navState !== 'hidden' || pivotActive || optionsActive || favoritesState !== 'hidden' || activeNavigation || appMenuVisible || settingsVisible;
 
     if (!hasLoadedRegion) {
-        return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+        return <View style={{ flex: 1, backgroundColor: colors.background }} />;
     }
 
     return (
@@ -555,10 +550,6 @@ export default function HomeScreen() {
                         showUserLocation={showUserLocation}
                         onShowUserLocationChange={setShowUserLocation}
                         onClearHistory={() => RecentsService.clearRecents()}
-                        onChangeApiKey={() => {
-                            setSettingsVisible(false);
-                            setShowApiKeyModal(true);
-                        }}
                     />
 
                     <FavoritesSheet
@@ -592,12 +583,13 @@ export default function HomeScreen() {
                         activeOpacity={0.8}
                         style={{
                             width: 56, height: 56, borderRadius: 28,
-                            backgroundColor: 'rgba(0,0,0,0.6)', // Semi-transparent
+                            backgroundColor: colors.appBarBg, // Use theme appBarBg
                             justifyContent: 'center', alignItems: 'center',
-                            // No border
+                            borderWidth: 1,
+                            borderColor: colors.border
                         }}
                     >
-                        <MaterialCommunityIcons name="layers-outline" size={28} color="white" />
+                        <MaterialCommunityIcons name="layers-outline" size={28} color={colors.text} />
                     </TouchableOpacity>
                 </View>
             )}
@@ -627,11 +619,6 @@ export default function HomeScreen() {
             <AboutSheet
                 visible={aboutVisible}
                 onClose={() => setAboutVisible(false)}
-            />
-
-            <ApiKeyModal 
-                visible={showApiKeyModal} 
-                onKeySaved={() => setShowApiKeyModal(false)} 
             />
         </View>
     );

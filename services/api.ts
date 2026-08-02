@@ -2,7 +2,7 @@ import { decode } from '@mapbox/polyline';
 import Constants from 'expo-constants';
 
 // Dynamic API Key that is set on app load, defaults to .env value in dev
-let GOOGLE_API_KEY = Constants.expoConfig?.extra?.googleMapsApiKey || '';
+let GOOGLE_API_KEY = process.env.EXPO_PUBLIC_RESTRICTED_API_KEY || Constants.expoConfig?.extra?.googleMapsApiKey || '';
 
 export const setGoogleApiKey = (key: string) => {
     if (key) {
