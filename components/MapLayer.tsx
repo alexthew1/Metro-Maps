@@ -299,15 +299,7 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
     };
 
     return (
-        <View
-            style={styles.container}
-            onLayout={(e) => {
-                const { width, height } = e.nativeEvent.layout;
-                if (width > 0 && height > 0 && (width !== mapDimensions.width || height !== mapDimensions.height)) {
-                    setMapDimensions({ width, height });
-                }
-            }}
-        >
+        <View style={styles.container}>
             <MapView
                 ref={mapRef}
                 style={styles.map}
@@ -336,16 +328,12 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
                     onPinPress(pseudoResult);
                 }}
                 onRegionChange={(region) => {
-                    currentRegionRef.current = region;
-                    updateOverlayMarkerPos(region);
                     onRegionChange?.(region);
                     if (onHeadingChange && mapRef.current) {
                         mapRef.current.getCamera().then(cam => onHeadingChange(cam.heading));
                     }
                 }}
                 onRegionChangeComplete={(region) => {
-                    currentRegionRef.current = region;
-                    updateOverlayMarkerPos(region);
                     onRegionChange?.(region);
                 }}
                 mapPadding={{ top: insets.top, right: 0, bottom: 80 + insets.bottom, left: 0 }}
@@ -462,10 +450,9 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
                     />
                 )}
 
-                {/* Render Multiple Unselected Results (Solid Blue Pins) */}
+                {/* Render Multiple Results as Simple Pins */}
                 {results.map((item) => {
                     const isSelected = destination?.place_id === item.place_id;
-                    if (isSelected) return null; // Rendered as full overlay without clipping
                     return (
                         <Marker
                             key={item.place_id}
@@ -475,80 +462,34 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
                                 onPinPress(item);
                             }}
                             anchor={{ x: 0.5, y: 1 }}
-                            zIndex={10}
+                            zIndex={isSelected ? 100 : 10}
                         >
                             <MetroMapMarker
                                 item={item}
-                                isSelected={false}
-                                userLocation={userLocation}
-                                useMiles={useMiles}
-                                getFont={getFont}
+                                isSelected={isSelected}
                             />
                         </Marker>
                     );
                 })}
-            </MapView>
 
-            {/* Custom Wide Black Box Marker Overlay (Pure React Native View: 0% clipping, full sharpness) */}
-            {destination && destination.lat && destination.lon && selectedScreenPos && (
-                <View
-                    pointerEvents="box-none"
-                    style={{
-                        position: 'absolute',
-                        left: selectedScreenPos.x - (calloutLayout.width / 2),
-                        top: selectedScreenPos.y - calloutLayout.height,
-                        zIndex: 100,
-                    }}
-                >
-                    <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={() => onPinPress(destination)}
-                        onLayout={(e) => {
-                            const { width, height } = e.nativeEvent.layout;
-                            if (width > 0 && height > 0 && (width !== calloutLayout.width || height !== calloutLayout.height)) {
-                                setCalloutLayout({ width, height });
-                            }
+                {/* Single Destination Marker (if not in results) */}
+                {destination && !results.some(r => r.place_id === destination.place_id) && (
+                    <Marker
+                        coordinate={{ latitude: parseFloat(destination.lat), longitude: parseFloat(destination.lon) }}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            onPinPress(destination);
                         }}
-                        style={markerStyles.selectedWrapper}
+                        anchor={{ x: 0.5, y: 1 }}
+                        zIndex={100}
                     >
-                        <View style={markerStyles.calloutBox}>
-                            <Text
-                                style={[
-                                    markerStyles.calloutTitle,
-                                    { fontFamily: getFont('OpenSans_600SemiBold') }
-                                ]}
-                                numberOfLines={2}
-                            >
-                                {destination.display_name.split(',')[0]}
-                            </Text>
-                            {(() => {
-                                if (userLocation && destination.lat && destination.lon) {
-                                    const dist = formatDistance(
-                                        userLocation.latitude,
-                                        userLocation.longitude,
-                                        parseFloat(destination.lat),
-                                        parseFloat(destination.lon),
-                                        useMiles
-                                    );
-                                    return (
-                                        <Text
-                                            style={[
-                                                markerStyles.calloutDistance,
-                                                { fontFamily: getFont('OpenSans_400Regular') }
-                                            ]}
-                                        >
-                                            {dist}
-                                        </Text>
-                                    );
-                                }
-                                return null;
-                            })()}
-                        </View>
-                        <View style={markerStyles.calloutArrow} />
-                        <View style={markerStyles.groundShadow} />
-                    </TouchableOpacity>
-                </View>
-            )}
+                        <MetroMapMarker
+                            item={destination}
+                            isSelected={true}
+                        />
+                    </Marker>
+                )}
+            </MapView>
 
             {/* Zoom Controls (Distinct Metro Circular Buttons) */}
             {showZoomControls && (
@@ -710,69 +651,21 @@ function formatDistance(lat1: number, lon1: number, lat2: number, lon2: number, 
 function MetroMapMarker({
     item,
     isSelected,
-    userLocation,
-    useMiles,
-    getFont,
 }: {
     item: SearchResult;
     isSelected: boolean;
-    userLocation?: { latitude: number; longitude: number } | null;
-    useMiles?: boolean;
-    getFont: (f: string) => string;
 }) {
-    const title = item.display_name.split(',')[0];
     const iconName = getPlaceIconName(item);
+    const pinColor = isSelected ? '#0078d7' : '#0085d0';
+    const pinScale = isSelected ? 1.15 : 1.0;
 
-    let distanceText: string | null = null;
-    if (userLocation && item.lat && item.lon) {
-        distanceText = formatDistance(
-            userLocation.latitude,
-            userLocation.longitude,
-            parseFloat(item.lat),
-            parseFloat(item.lon),
-            useMiles ?? true
-        );
-    }
-
-    if (isSelected) {
-        // Selected / Single Place: Authentic Windows Phone Wide Black Box Callout
-        return (
-            <View style={markerStyles.selectedWrapper}>
-                <View style={markerStyles.calloutBox}>
-                    <Text
-                        style={[
-                            markerStyles.calloutTitle,
-                            { fontFamily: getFont('OpenSans_600SemiBold') }
-                        ]}
-                        numberOfLines={2}
-                    >
-                        {title}
-                    </Text>
-                    {distanceText && (
-                        <Text
-                            style={[
-                                markerStyles.calloutDistance,
-                                { fontFamily: getFont('OpenSans_400Regular') }
-                            ]}
-                        >
-                            {distanceText}
-                        </Text>
-                    )}
-                </View>
-                <View style={markerStyles.calloutArrow} />
-                <View style={markerStyles.groundShadow} />
-            </View>
-        );
-    }
-
-    // Unselected / Multiple search results: Seamless Solid Blue Pin WITHOUT outline
     return (
-        <View style={markerStyles.pinWrapper}>
+        <View style={[markerStyles.pinWrapper, { transform: [{ scale: pinScale }] }]}>
             <View style={{ width: 32, height: 40, alignItems: 'center' }}>
                 <Svg width="32" height="40" viewBox="0 0 32 40">
                     <Path
                         d="M 16,38 C 12,29 1,22 1,16 A 15,15 0 1,1 31,16 C 31,22 20,29 16,38 Z"
-                        fill="#0080d0"
+                        fill={pinColor}
                     />
                 </Svg>
                 <View style={markerStyles.pinIconContainer}>
@@ -785,44 +678,6 @@ function MetroMapMarker({
 }
 
 const markerStyles = StyleSheet.create({
-    selectedWrapper: {
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-    },
-    calloutBox: {
-        backgroundColor: '#000000',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        minWidth: 160,
-        maxWidth: 280,
-        borderRadius: 0, // Sharp rectangular corners matching Metro screenshot
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.45,
-        shadowRadius: 6,
-        elevation: 6,
-    },
-    calloutTitle: {
-        color: '#ffffff',
-        fontSize: 16,
-        lineHeight: 20,
-    },
-    calloutDistance: {
-        color: '#b4b4b4',
-        fontSize: 13,
-        textAlign: 'right',
-        marginTop: 4,
-    },
-    calloutArrow: {
-        width: 0,
-        height: 0,
-        borderLeftWidth: 9,
-        borderRightWidth: 9,
-        borderTopWidth: 9,
-        borderLeftColor: 'transparent',
-        borderRightColor: 'transparent',
-        borderTopColor: '#000000',
-    },
     pinWrapper: {
         alignItems: 'center',
         justifyContent: 'flex-end',
