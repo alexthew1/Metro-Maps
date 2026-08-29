@@ -75,48 +75,6 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
     const insets = useSafeAreaInsets();
     const hasCenteredOnUser = useRef(false);
 
-    // Custom Overlay Marker state (eliminates native Android/iOS marker bitmap clipping)
-    const [mapDimensions, setMapDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
-    const currentRegionRef = useRef<any>(initialRegion || null);
-    const [selectedScreenPos, setSelectedScreenPos] = useState<{ x: number; y: number } | null>(null);
-    const [calloutLayout, setCalloutLayout] = useState<{ width: number; height: number }>({ width: 180, height: 60 });
-
-    const updateOverlayMarkerPos = async (region?: any) => {
-        if (!destination || !destination.lat || !destination.lon) {
-            setSelectedScreenPos(null);
-            return;
-        }
-        const targetLat = parseFloat(destination.lat);
-        const targetLon = parseFloat(destination.lon);
-
-        if (mapRef.current) {
-            try {
-                const point = await mapRef.current.pointForCoordinate({
-                    latitude: targetLat,
-                    longitude: targetLon
-                });
-                if (point && typeof point.x === 'number' && typeof point.y === 'number' && !isNaN(point.x) && !isNaN(point.y)) {
-                    setSelectedScreenPos(point);
-                    return;
-                }
-            } catch (e) {}
-        }
-
-        // Mathematical fallback projection from currentRegion
-        const activeRegion = region || currentRegionRef.current;
-        if (activeRegion && mapDimensions.width > 0 && mapDimensions.height > 0 && activeRegion.latitudeDelta > 0) {
-            const deltaLat = targetLat - activeRegion.latitude;
-            const deltaLon = targetLon - activeRegion.longitude;
-            const x = mapDimensions.width / 2 + (deltaLon / activeRegion.longitudeDelta) * mapDimensions.width;
-            const y = mapDimensions.height / 2 - (deltaLat / activeRegion.latitudeDelta) * mapDimensions.height;
-            setSelectedScreenPos({ x, y });
-        }
-    };
-
-    useEffect(() => {
-        updateOverlayMarkerPos();
-    }, [destination, mapDimensions]);
-
     // Initial Center on User (on startup only)
     // Initial Center on User (on startup only) - Skip if we have a persisted initialRegion
     useEffect(() => {
