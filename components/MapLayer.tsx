@@ -7,332 +7,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Svg, Path, Circle, Rect } from 'react-native-svg';
 import { horizontalScale } from '../utils/responsive';
+import { useTheme } from '../contexts/ThemeContext';
+import { useCustomFont } from '../contexts/FontContext';
 
-// Metro/Here Maps Desaturated Style
-// Metro/Here Maps Desaturated Style (User Provided + Business Labels)
-const MAP_STYLE = [
-    {
-        "featureType": "landscape",
-        "elementType": "geometry",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "landscape.man_made",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "landscape.man_made",
-        "elementType": "geometry",
-        "stylers": [
-            {
-                "visibility": "simplified"
-            },
-            {
-                "hue": "#ff0000"
-            }
-        ]
-    },
-    {
-        "featureType": "landscape.man_made",
-        "elementType": "labels",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "landscape.natural",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "landscape.natural",
-        "elementType": "geometry",
-        "stylers": [
-            {
-                "color": "#d0e3b4"
-            }
-        ]
-    },
-    {
-        "featureType": "landscape.natural.terrain",
-        "elementType": "geometry",
-        "stylers": [
-            {
-                "visibility": "off"
-            }
-        ]
-    },
-    {
-        "featureType": "poi",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "poi",
-        "elementType": "labels",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "poi",
-        "elementType": "labels.text.fill",
-        "stylers": [
-            {
-                "color": "#000000"
-            }
-        ]
-    },
-    {
-        "featureType": "poi",
-        "elementType": "labels.text.stroke",
-        "stylers": [
-            {
-                "color": "#ffffff"
-            }
-        ]
-    },
-    {
-        "featureType": "poi",
-        "elementType": "labels.icon",
-        "stylers": [
-            {
-                "visibility": "on"
-            },
-            {
-                "color": "#3275eb"
-            }
-        ]
-    },
-    {
-        "featureType": "poi.attraction",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "poi.business",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "poi.business",
-        "elementType": "labels.text.fill",
-        "stylers": [
-            {
-                "color": "#000000"
-            }
-        ]
-    },
-    {
-        "featureType": "poi.business",
-        "elementType": "labels.text.stroke",
-        "stylers": [
-            {
-                "color": "#ffffff"
-            }
-        ]
-    },
-    {
-        "featureType": "poi.government",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "poi.medical",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "poi.medical",
-        "elementType": "geometry",
-        "stylers": [
-            {
-                "color": "#fbd3da"
-            }
-        ]
-    },
-    {
-        "featureType": "poi.park",
-        "elementType": "geometry",
-        "stylers": [
-            {
-                "color": "#bde6ab"
-            }
-        ]
-    },
-    {
-        "featureType": "road",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "road",
-        "elementType": "geometry.stroke",
-        "stylers": [
-            {
-                "visibility": "off"
-            }
-        ]
-    },
-    {
-        "featureType": "road",
-        "elementType": "labels",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "road.highway",
-        "elementType": "geometry.fill",
-        "stylers": [
-            {
-                "color": "#ffe15f"
-            }
-        ]
-    },
-    {
-        "featureType": "road.highway",
-        "elementType": "geometry.stroke",
-        "stylers": [
-            {
-                "color": "#efd151"
-            }
-        ]
-    },
-    {
-        "featureType": "road.arterial",
-        "elementType": "geometry.fill",
-        "stylers": [
-            {
-                "color": "#ffffff"
-            }
-        ]
-    },
-    {
-        "featureType": "road.local",
-        "elementType": "geometry.fill",
-        "stylers": [
-            {
-                "color": "black"
-            }
-        ]
-    },
-    {
-        "featureType": "transit",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "transit.line",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "transit.station",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "transit.station.airport",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "transit.station.airport",
-        "elementType": "geometry.fill",
-        "stylers": [
-            {
-                "color": "#cfb2db"
-            }
-        ]
-    },
-    {
-        "featureType": "transit.station.bus",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "transit.station.rail",
-        "elementType": "all",
-        "stylers": [
-            {
-                "visibility": "on"
-            }
-        ]
-    },
-    {
-        "featureType": "water",
-        "elementType": "geometry",
-        "stylers": [
-            {
-                "color": "#a2daf2"
-            }
-        ]
-    }
-];
+import { LIGHT_MAP_STYLE, DARK_MAP_STYLE } from '../constants/MapStyles';
 
 interface MapLayerProps {
     userLocation: { latitude: number; longitude: number; heading?: number | null } | null;
@@ -342,6 +20,7 @@ interface MapLayerProps {
     selectedRouteIndex?: number;
     onSelectRoute?: (index: number) => void;
     mapType?: 'standard' | 'satellite';
+    mapTheme?: 'light' | 'dark';
     onMapPress: () => void;
     onPinPress: (item?: SearchResult) => void;
     onRegionChange?: (region: any) => void;
@@ -358,8 +37,17 @@ interface MapLayerProps {
     initialRegion?: { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number };
 }
 
-export function MapLayer({ userLocation, destination, results = [], routes = [], selectedRouteIndex = 0, onSelectRoute, mapType = 'standard', showLabels = true, showsBuildings = true, showZoomControls = false, showUserLocation = true, useMiles = true, onMapPress, onPinPress, cameraTrigger, onRegionChange, cameraMode = 'default', isFollowing = true, onFollowChange, onHeadingChange, initialRegion }: MapLayerProps) {
+export function MapLayer({ userLocation, destination, results = [], routes = [], selectedRouteIndex = 0, onSelectRoute, mapType = 'standard', mapTheme = 'light', showLabels = true, showsBuildings = true, showZoomControls = false, showUserLocation = true, useMiles = true, onMapPress, onPinPress, cameraTrigger, onRegionChange, cameraMode = 'default', isFollowing = true, onFollowChange, onHeadingChange, initialRegion }: MapLayerProps) {
     const route = routes[selectedRouteIndex] || null;
+    const { customFonts } = useCustomFont();
+
+    const getFont = (defaultFont: string) => {
+        if (defaultFont.includes('300Light')) return customFonts.light || defaultFont;
+        if (defaultFont.includes('400Regular')) return customFonts.regular || defaultFont;
+        if (defaultFont.includes('600SemiBold')) return customFonts.semiBold || defaultFont;
+        if (defaultFont.includes('700Bold')) return customFonts.semiBold || defaultFont;
+        return defaultFont;
+    };
 
     // Route path processing
 
@@ -367,11 +55,13 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
     // User requested "all labels" for satellite, so we force 'hybrid'
     const effectiveMapType = mapType === 'satellite' ? 'hybrid' : 'standard';
 
+    const currentMapStyle = mapTheme === 'dark' ? DARK_MAP_STYLE : LIGHT_MAP_STYLE;
+
     // Toggle Labels for Standard Map
     // We append a rule to hide all labels if showLabels is false
     const effectiveMapStyle = showLabels
-        ? MAP_STYLE
-        : [...MAP_STYLE, { "elementType": "labels", "stylers": [{ "visibility": "off" }] }];
+        ? currentMapStyle
+        : [...currentMapStyle, { "elementType": "labels", "stylers": [{ "visibility": "off" }] }];
 
     // Camera Change Handler
     const handleRegionChange = (region: any, details?: any) => {
@@ -384,6 +74,48 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
     const mapRef = useRef<MapView>(null);
     const insets = useSafeAreaInsets();
     const hasCenteredOnUser = useRef(false);
+
+    // Custom Overlay Marker state (eliminates native Android/iOS marker bitmap clipping)
+    const [mapDimensions, setMapDimensions] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+    const currentRegionRef = useRef<any>(initialRegion || null);
+    const [selectedScreenPos, setSelectedScreenPos] = useState<{ x: number; y: number } | null>(null);
+    const [calloutLayout, setCalloutLayout] = useState<{ width: number; height: number }>({ width: 180, height: 60 });
+
+    const updateOverlayMarkerPos = async (region?: any) => {
+        if (!destination || !destination.lat || !destination.lon) {
+            setSelectedScreenPos(null);
+            return;
+        }
+        const targetLat = parseFloat(destination.lat);
+        const targetLon = parseFloat(destination.lon);
+
+        if (mapRef.current) {
+            try {
+                const point = await mapRef.current.pointForCoordinate({
+                    latitude: targetLat,
+                    longitude: targetLon
+                });
+                if (point && typeof point.x === 'number' && typeof point.y === 'number' && !isNaN(point.x) && !isNaN(point.y)) {
+                    setSelectedScreenPos(point);
+                    return;
+                }
+            } catch (e) {}
+        }
+
+        // Mathematical fallback projection from currentRegion
+        const activeRegion = region || currentRegionRef.current;
+        if (activeRegion && mapDimensions.width > 0 && mapDimensions.height > 0 && activeRegion.latitudeDelta > 0) {
+            const deltaLat = targetLat - activeRegion.latitude;
+            const deltaLon = targetLon - activeRegion.longitude;
+            const x = mapDimensions.width / 2 + (deltaLon / activeRegion.longitudeDelta) * mapDimensions.width;
+            const y = mapDimensions.height / 2 - (deltaLat / activeRegion.latitudeDelta) * mapDimensions.height;
+            setSelectedScreenPos({ x, y });
+        }
+    };
+
+    useEffect(() => {
+        updateOverlayMarkerPos();
+    }, [destination, mapDimensions]);
 
     // Initial Center on User (on startup only)
     // Initial Center on User (on startup only) - Skip if we have a persisted initialRegion
@@ -609,7 +341,15 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
     };
 
     return (
-        <View style={styles.container}>
+        <View
+            style={styles.container}
+            onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                if (width > 0 && height > 0 && (width !== mapDimensions.width || height !== mapDimensions.height)) {
+                    setMapDimensions({ width, height });
+                }
+            }}
+        >
             <MapView
                 ref={mapRef}
                 style={styles.map}
@@ -638,12 +378,16 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
                     onPinPress(pseudoResult);
                 }}
                 onRegionChange={(region) => {
+                    currentRegionRef.current = region;
+                    updateOverlayMarkerPos(region);
                     onRegionChange?.(region);
                     if (onHeadingChange && mapRef.current) {
                         mapRef.current.getCamera().then(cam => onHeadingChange(cam.heading));
                     }
                 }}
                 onRegionChangeComplete={(region) => {
+                    currentRegionRef.current = region;
+                    updateOverlayMarkerPos(region);
                     onRegionChange?.(region);
                 }}
                 mapPadding={{ top: insets.top, right: 0, bottom: 80 + insets.bottom, left: 0 }}
@@ -744,44 +488,123 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
                         tracksViewChanges={false}
                     />
                 )}
-                {/* Re-implement Marker rotation properly below */}
 
-
-                {/* Render Multiple Results */}
-                {results.map((item) => (
-                    <Marker
-                        key={item.place_id}
-                        coordinate={{ latitude: parseFloat(item.lat), longitude: parseFloat(item.lon) }}
-                        title={item.display_name.split(',')[0]}
-                        onPress={(e) => {
-                            e.stopPropagation();
-                            onPinPress(item);
-                        }}
-                    />
-                ))}
-
-                {/* Single Destination (if explicitly set separate from results) */}
-                {destination && results.length === 0 && (
-                    <Marker
-                        coordinate={{ latitude: parseFloat(destination.lat), longitude: parseFloat(destination.lon) }}
-                        title={destination.display_name.split(',')[0]}
-                        onPress={(e) => {
-                            e.stopPropagation();
-                            onPinPress(destination);
-                        }}
-                    />
-                )}
+                {/* Render Multiple Unselected Results (Solid Blue Pins) */}
+                {results.map((item) => {
+                    const isSelected = destination?.place_id === item.place_id;
+                    if (isSelected) return null; // Rendered as full overlay without clipping
+                    return (
+                        <Marker
+                            key={item.place_id}
+                            coordinate={{ latitude: parseFloat(item.lat), longitude: parseFloat(item.lon) }}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                onPinPress(item);
+                            }}
+                            anchor={{ x: 0.5, y: 1 }}
+                            zIndex={10}
+                        >
+                            <MetroMapMarker
+                                item={item}
+                                isSelected={false}
+                                userLocation={userLocation}
+                                useMiles={useMiles}
+                                getFont={getFont}
+                            />
+                        </Marker>
+                    );
+                })}
             </MapView>
 
-            {/* Zoom Controls */}
+            {/* Custom Wide Black Box Marker Overlay (Pure React Native View: 0% clipping, full sharpness) */}
+            {destination && destination.lat && destination.lon && selectedScreenPos && (
+                <View
+                    pointerEvents="box-none"
+                    style={{
+                        position: 'absolute',
+                        left: selectedScreenPos.x - (calloutLayout.width / 2),
+                        top: selectedScreenPos.y - calloutLayout.height,
+                        zIndex: 100,
+                    }}
+                >
+                    <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => onPinPress(destination)}
+                        onLayout={(e) => {
+                            const { width, height } = e.nativeEvent.layout;
+                            if (width > 0 && height > 0 && (width !== calloutLayout.width || height !== calloutLayout.height)) {
+                                setCalloutLayout({ width, height });
+                            }
+                        }}
+                        style={markerStyles.selectedWrapper}
+                    >
+                        <View style={markerStyles.calloutBox}>
+                            <Text
+                                style={[
+                                    markerStyles.calloutTitle,
+                                    { fontFamily: getFont('OpenSans_600SemiBold') }
+                                ]}
+                                numberOfLines={2}
+                            >
+                                {destination.display_name.split(',')[0]}
+                            </Text>
+                            {(() => {
+                                if (userLocation && destination.lat && destination.lon) {
+                                    const dist = formatDistance(
+                                        userLocation.latitude,
+                                        userLocation.longitude,
+                                        parseFloat(destination.lat),
+                                        parseFloat(destination.lon),
+                                        useMiles
+                                    );
+                                    return (
+                                        <Text
+                                            style={[
+                                                markerStyles.calloutDistance,
+                                                { fontFamily: getFont('OpenSans_400Regular') }
+                                            ]}
+                                        >
+                                            {dist}
+                                        </Text>
+                                    );
+                                }
+                                return null;
+                            })()}
+                        </View>
+                        <View style={markerStyles.calloutArrow} />
+                        <View style={markerStyles.groundShadow} />
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Zoom Controls (Distinct Metro Circular Buttons) */}
             {showZoomControls && (
                 <View style={styles.zoomControls}>
-                    <TouchableOpacity onPress={() => handleZoom(true)} style={styles.zoomButton}>
-                        <Ionicons name="add" size={24} color="white" />
+                    <TouchableOpacity
+                        onPress={() => handleZoom(true)}
+                        activeOpacity={0.7}
+                        style={[
+                            styles.zoomButton,
+                            {
+                                backgroundColor: 'transparent',
+                                borderColor: mapTheme === 'dark' ? '#ffffff' : '#000000',
+                            }
+                        ]}
+                    >
+                        <Ionicons name="add" size={26} color={mapTheme === 'dark' ? '#ffffff' : '#000000'} />
                     </TouchableOpacity>
-                    <View style={styles.zoomDivider} />
-                    <TouchableOpacity onPress={() => handleZoom(false)} style={styles.zoomButton}>
-                        <Ionicons name="remove" size={24} color="white" />
+                    <TouchableOpacity
+                        onPress={() => handleZoom(false)}
+                        activeOpacity={0.7}
+                        style={[
+                            styles.zoomButton,
+                            {
+                                backgroundColor: 'transparent',
+                                borderColor: mapTheme === 'dark' ? '#ffffff' : '#000000',
+                            }
+                        ]}
+                    >
+                        <Ionicons name="remove" size={26} color={mapTheme === 'dark' ? '#ffffff' : '#000000'} />
                     </TouchableOpacity>
                 </View>
             )}
@@ -853,26 +676,198 @@ const styles = StyleSheet.create({
     },
     zoomControls: {
         position: 'absolute',
-        right: 20,
+        right: 18,
         top: '50%',
-        marginTop: -50,
-        width: 48, // Slightly wider for touch target
-        backgroundColor: 'black', // Metro Black
-        borderWidth: 2,
-        borderColor: 'white', // Metro White border
+        marginTop: -56,
+        gap: 12,
         alignItems: 'center',
-        // No shadow, no radius for Metro look
         zIndex: 50,
     },
     zoomButton: {
-        width: 44,
-        height: 44,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        borderWidth: 2,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    zoomDivider: {
-        width: 30,
-        height: 2, // Thicker divider
-        backgroundColor: 'white',
+});
+
+// Category Icon Resolver matching Windows Phone HERE Transit / Maps glyphs
+function getPlaceIconName(item: SearchResult): keyof typeof Ionicons.glyphMap {
+    const typeStr = ((item.type || '') + ' ' + (item.types?.join(' ') || '') + ' ' + item.display_name).toLowerCase();
+    if (typeStr.includes('train') || typeStr.includes('subway') || typeStr.includes('rail') || typeStr.includes('metro') || typeStr.includes('station')) return 'train';
+    if (typeStr.includes('bus')) return 'bus';
+    if (typeStr.includes('airport') || typeStr.includes('plane') || typeStr.includes('flight')) return 'airplane';
+    if (typeStr.includes('food') || typeStr.includes('restaurant') || typeStr.includes('cafe') || typeStr.includes('bakery') || typeStr.includes('dining')) return 'restaurant';
+    if (typeStr.includes('shop') || typeStr.includes('store') || typeStr.includes('mall') || typeStr.includes('market') || typeStr.includes('grocery')) return 'cart';
+    if (typeStr.includes('hotel') || typeStr.includes('lodging') || typeStr.includes('motel')) return 'bed';
+    if (typeStr.includes('park') || typeStr.includes('garden')) return 'leaf';
+    if (typeStr.includes('hospital') || typeStr.includes('doctor') || typeStr.includes('health') || typeStr.includes('pharmacy')) return 'medkit';
+    if (typeStr.includes('church') || typeStr.includes('worship')) return 'business';
+    return 'location';
+}
+
+function formatDistance(lat1: number, lon1: number, lat2: number, lon2: number, useMiles: boolean): string {
+    const R = 6371000; // meters
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distMeters = R * c;
+
+    if (useMiles) {
+        const feet = distMeters * 3.28084;
+        if (feet < 1000) {
+            return `${Math.round(feet)} ft`;
+        }
+        const miles = distMeters / 1609.34;
+        return `${miles.toFixed(1)} mi`;
+    } else {
+        if (distMeters < 1000) {
+            return `${Math.round(distMeters)} m`;
+        }
+        const km = distMeters / 1000;
+        return `${km.toFixed(1)} km`;
     }
+}
+
+function MetroMapMarker({
+    item,
+    isSelected,
+    userLocation,
+    useMiles,
+    getFont,
+}: {
+    item: SearchResult;
+    isSelected: boolean;
+    userLocation?: { latitude: number; longitude: number } | null;
+    useMiles?: boolean;
+    getFont: (f: string) => string;
+}) {
+    const title = item.display_name.split(',')[0];
+    const iconName = getPlaceIconName(item);
+
+    let distanceText: string | null = null;
+    if (userLocation && item.lat && item.lon) {
+        distanceText = formatDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            parseFloat(item.lat),
+            parseFloat(item.lon),
+            useMiles ?? true
+        );
+    }
+
+    if (isSelected) {
+        // Selected / Single Place: Authentic Windows Phone Wide Black Box Callout
+        return (
+            <View style={markerStyles.selectedWrapper}>
+                <View style={markerStyles.calloutBox}>
+                    <Text
+                        style={[
+                            markerStyles.calloutTitle,
+                            { fontFamily: getFont('OpenSans_600SemiBold') }
+                        ]}
+                        numberOfLines={2}
+                    >
+                        {title}
+                    </Text>
+                    {distanceText && (
+                        <Text
+                            style={[
+                                markerStyles.calloutDistance,
+                                { fontFamily: getFont('OpenSans_400Regular') }
+                            ]}
+                        >
+                            {distanceText}
+                        </Text>
+                    )}
+                </View>
+                <View style={markerStyles.calloutArrow} />
+                <View style={markerStyles.groundShadow} />
+            </View>
+        );
+    }
+
+    // Unselected / Multiple search results: Seamless Solid Blue Pin WITHOUT outline
+    return (
+        <View style={markerStyles.pinWrapper}>
+            <View style={{ width: 32, height: 40, alignItems: 'center' }}>
+                <Svg width="32" height="40" viewBox="0 0 32 40">
+                    <Path
+                        d="M 16,38 C 12,29 1,22 1,16 A 15,15 0 1,1 31,16 C 31,22 20,29 16,38 Z"
+                        fill="#0080d0"
+                    />
+                </Svg>
+                <View style={markerStyles.pinIconContainer}>
+                    <Ionicons name={iconName} size={16} color="#ffffff" />
+                </View>
+            </View>
+            <View style={markerStyles.groundShadow} />
+        </View>
+    );
+}
+
+const markerStyles = StyleSheet.create({
+    selectedWrapper: {
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+    },
+    calloutBox: {
+        backgroundColor: '#000000',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        minWidth: 160,
+        maxWidth: 280,
+        borderRadius: 0, // Sharp rectangular corners matching Metro screenshot
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.45,
+        shadowRadius: 6,
+        elevation: 6,
+    },
+    calloutTitle: {
+        color: '#ffffff',
+        fontSize: 16,
+        lineHeight: 20,
+    },
+    calloutDistance: {
+        color: '#b4b4b4',
+        fontSize: 13,
+        textAlign: 'right',
+        marginTop: 4,
+    },
+    calloutArrow: {
+        width: 0,
+        height: 0,
+        borderLeftWidth: 9,
+        borderRightWidth: 9,
+        borderTopWidth: 9,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        borderTopColor: '#000000',
+    },
+    pinWrapper: {
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+    },
+    pinIconContainer: {
+        position: 'absolute',
+        top: 4,
+        left: 4,
+        width: 24,
+        height: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    groundShadow: {
+        width: 14,
+        height: 5,
+        borderRadius: 7,
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
+        marginTop: 1,
+    },
 });

@@ -4,7 +4,7 @@ export default {
     expo: {
         name: "MetroMaps",
         slug: "metromaps",
-        version: "1.4.0",
+        version: "1.6.0",
         orientation: "portrait",
         icon: "./assets/icon.png",
         userInterfaceStyle: "light",

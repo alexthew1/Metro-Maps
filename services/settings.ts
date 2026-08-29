@@ -67,6 +67,21 @@ export const SettingsService = {
         } catch {}
     },
 
+    async getMapTheme(): Promise<'light' | 'dark'> {
+        try {
+            const val = await AsyncStorage.getItem('metro_maps_map_theme');
+            return val === 'dark' ? 'dark' : 'light';
+        } catch {
+            return 'light';
+        }
+    },
+
+    async setMapTheme(theme: 'light' | 'dark'): Promise<void> {
+        try {
+            await AsyncStorage.setItem('metro_maps_map_theme', theme);
+        } catch {}
+    },
+
     // Get the default units based on locale (for display purposes)
     getLocaleDefaultUnits(): UnitsType {
         return getDefaultUnits();

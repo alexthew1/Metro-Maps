@@ -1,12 +1,13 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Image, Linking, Platform, Share, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Image, Linking, Platform, Share, Modal, Pressable } from 'react-native';
 import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
-import Animated, { useAnimatedStyle, withTiming, Easing, SlideInDown, SlideOutDown, useSharedValue, interpolate, Extrapolation, interpolateColor, SharedValue, FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming, Easing, SlideInDown, SlideOutDown, useSharedValue, interpolate, Extrapolation, interpolateColor, SharedValue, FadeIn, FadeOut, withSpring, Keyframe } from 'react-native-reanimated';
 import PagerView from 'react-native-pager-view';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { GlobalStyles } from '../constants/Styles';
 import { Colors } from '../constants/Colors';
 import { MetroButton } from './MetroButton';
+import { LIGHT_MAP_STYLE, DARK_MAP_STYLE } from '../constants/MapStyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchResult, api } from '../services/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,17 +35,73 @@ function AnimatedPivotItem({ isActive, title, onPress, colors, getFont, t, onLay
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const TurnstileEnter = new Keyframe({
+    0: {
+        transform: [{ perspective: 1000 }, { rotateY: '-90deg' }],
+        opacity: 0,
+        // @ts-ignore
+        easing: Easing.out(Easing.cubic)
+    },
+    100: {
+        transform: [{ perspective: 1000 }, { rotateY: '0deg' }],
+        opacity: 1,
+    },
+});
+
+const TurnstileExit = new Keyframe({
+    0: {
+        transform: [{ perspective: 1000 }, { rotateY: '0deg' }],
+        opacity: 1,
+        // @ts-ignore
+        easing: Easing.in(Easing.cubic)
+    },
+    100: {
+        transform: [{ perspective: 1000 }, { rotateY: '-90deg' }],
+        opacity: 0,
+    },
+});
+
+function TurnstilePage({ isActive, children }: { isActive: boolean; children: React.ReactNode }) {
+    const animatedStyle = useAnimatedStyle(() => {
+        return {
+            opacity: withTiming(isActive ? 1 : 0.25, { duration: 250 }),
+            transform: [
+                { perspective: 1000 },
+                {
+                    rotateY: withTiming(isActive ? '0deg' : '-35deg', {
+                        duration: 300,
+                        easing: Easing.out(Easing.cubic),
+                    })
+                },
+                {
+                    translateX: withTiming(isActive ? 0 : 25, {
+                        duration: 300,
+                        easing: Easing.out(Easing.cubic),
+                    })
+                }
+            ],
+        };
+    }, [isActive]);
+
+    return (
+        <Animated.View style={[styles.page, animatedStyle]}>
+            {children}
+        </Animated.View>
+    );
+}
+
 interface PivotScreenProps {
     item: SearchResult | null;
     onClose: () => void;
     onGetDirections: () => void;
     isFavorite: boolean;
     onToggleFavorite: () => void;
+    mapTheme?: 'light' | 'dark';
 }
 
 const BAR_HEIGHT = 72;
 
-export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onToggleFavorite }: PivotScreenProps) {
+export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onToggleFavorite, mapTheme = 'light' }: PivotScreenProps) {
     const insets = useSafeAreaInsets();
     const pagerRef = useRef<PagerView>(null);
     const [activePage, setActivePage] = useState(0);
@@ -54,7 +111,7 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
     const [showAddPhotoToast, setShowAddPhotoToast] = useState(false);
     const addPhotoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const { colors } = useTheme();
+    const { colors, isDark } = useTheme();
     const { t } = useTranslation();
     const { customFonts } = useCustomFont();
 
@@ -130,8 +187,8 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
 
     return (
         <Animated.View
-            entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))}
-            exiting={SlideOutDown.duration(400).easing(Easing.out(Easing.cubic))}
+            entering={TurnstileEnter.duration(250)}
+            exiting={TurnstileExit.duration(250)}
             style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: 0, backgroundColor: colors.background }]} // Handle paddingBottom in AppBar
         >
             {/* Background - Black for WP Style */}
@@ -179,159 +236,168 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                 pageMargin={20}
             >
                 {/* PAGE 1: ABOUT */}
-                <View key="1" style={styles.page}>
-                    <ScrollView contentContainerStyle={{ padding: 20 }}>
-                        <View style={{ gap: 20 }}>
-                            {/* Mini Map */}
-                            <View style={{ width: 140, height: 140, backgroundColor: colors.border }}>
-                                <MapView
-                                    provider={PROVIDER_GOOGLE}
-                                    style={{ flex: 1 }}
-                                    liteMode={true}
-                                    scrollEnabled={false}
-                                    zoomEnabled={false}
-                                    rotateEnabled={false}
-                                    pitchEnabled={false}
-                                    region={{
-                                        latitude: parseFloat(details.lat),
-                                        longitude: parseFloat(details.lon),
-                                        latitudeDelta: 0.005,
-                                        longitudeDelta: 0.005,
-                                    }}
-                                >
-                                    <Marker coordinate={{ latitude: parseFloat(details.lat), longitude: parseFloat(details.lon) }} />
-                                </MapView>
-                            </View>
+                <View key="1" style={{ flex: 1 }}>
+                    <TurnstilePage isActive={activePage === 0}>
+                        <ScrollView contentContainerStyle={{ padding: 20 }}>
+                            <View style={{ gap: 20 }}>
+                                {/* Mini Map */}
+                                <View style={{ width: 140, height: 140, backgroundColor: colors.border }}>
+                                    <MapView
+                                        provider={PROVIDER_GOOGLE}
+                                        style={{ flex: 1 }}
+                                        customMapStyle={mapTheme === 'dark' ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
+                                        liteMode={true}
+                                        scrollEnabled={false}
+                                        zoomEnabled={false}
+                                        rotateEnabled={false}
+                                        pitchEnabled={false}
+                                        region={{
+                                            latitude: parseFloat(details.lat),
+                                            longitude: parseFloat(details.lon),
+                                            latitudeDelta: 0.005,
+                                            longitudeDelta: 0.005,
+                                        }}
+                                    >
+                                        <Marker coordinate={{ latitude: parseFloat(details.lat), longitude: parseFloat(details.lon) }} />
+                                    </MapView>
+                                </View>
 
-                            {/* Get Directions */}
-                            <TouchableOpacity onPress={onGetDirections}>
-                                <Text style={[GlobalStyles.metroLG, { fontSize: 28, marginBottom: 4, fontFamily: getFont('OpenSans_400Regular'), color: colors.text }]}>{t('get directions')}</Text>
-                                <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address?.split(',')[0]}</Text>
-                                <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontSize: 16, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address}</Text>
-                            </TouchableOpacity>
+                                {/* Get Directions */}
+                                <TouchableOpacity onPress={onGetDirections}>
+                                    <Text style={[GlobalStyles.metroLG, { fontSize: 28, marginBottom: 4, fontFamily: getFont('OpenSans_400Regular'), color: colors.text }]}>{t('get directions')}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address?.split(',')[0]}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontSize: 16, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address}</Text>
+                                </TouchableOpacity>
 
-                            {/* Rating */}
-                            {details.rating ? (
-                                <View style={{ marginTop: 10 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                                        {[1, 2, 3, 4, 5].map((star) => {
-                                            let iconName: 'star' | 'star-half' | 'star-outline' = 'star-outline';
-                                            if (details.rating! >= star - 0.25) iconName = 'star';
-                                            else if (details.rating! >= star - 0.75) iconName = 'star-half';
-                                            return <Ionicons key={star} name={iconName} size={24} color="#FFD700" style={{ marginRight: 2 }} />;
-                                        })}
-                                        <Text style={[GlobalStyles.metroMD, { fontSize: 20, marginLeft: 8, color: '#FFD700', fontFamily: getFont('OpenSans_400Regular') }]}>
-                                            {details.rating.toFixed(1)}
+                                {/* Rating */}
+                                {details.rating ? (
+                                    <View style={{ marginTop: 10 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                                            {[1, 2, 3, 4, 5].map((star) => {
+                                                let iconName: 'star' | 'star-half' | 'star-outline' = 'star-outline';
+                                                if (details.rating! >= star - 0.25) iconName = 'star';
+                                                else if (details.rating! >= star - 0.75) iconName = 'star-half';
+                                                return <Ionicons key={star} name={iconName} size={24} color="#FFD700" style={{ marginRight: 2 }} />;
+                                            })}
+                                            <Text style={[GlobalStyles.metroMD, { fontSize: 20, marginLeft: 8, color: '#FFD700', fontFamily: getFont('OpenSans_400Regular') }]}>
+                                                {details.rating.toFixed(1)}
+                                            </Text>
+                                        </View>
+                                        <Text style={[GlobalStyles.metroSM, { fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>
+                                            {details.user_ratings_total} {t('reviews')}
                                         </Text>
                                     </View>
-                                    <Text style={[GlobalStyles.metroSM, { fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>
-                                        {details.user_ratings_total} {t('reviews')}
+                                ) : null}
+
+                                {/* Description (Real) */}
+                                {details.description ? (
+                                    <Text style={[GlobalStyles.metroMD, { fontSize: 20, lineHeight: 28, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
+                                        {details.description}
                                     </Text>
-                                </View>
-                            ) : null}
+                                ) : null}
 
-                            {/* Description (Real) */}
-                            {details.description ? (
-                                <Text style={[GlobalStyles.metroMD, { fontSize: 20, lineHeight: 28, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
-                                    {details.description}
-                                </Text>
-                            ) : null}
+                                {/* Phone */}
+                                {details.phone && (
+                                    <View style={{ marginTop: 10 }}>
+                                        <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('PHONE')}</Text>
+                                        <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(`tel:${details.phone}`)}>{details.phone}</Text>
+                                    </View>
+                                )}
 
-                            {/* Phone */}
-                            {details.phone && (
-                                <View style={{ marginTop: 10 }}>
-                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('PHONE')}</Text>
-                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(`tel:${details.phone}`)}>{details.phone}</Text>
-                                </View>
-                            )}
+                                {/* Website */}
+                                {details.website && (
+                                    <View style={{ marginTop: 10 }}>
+                                        <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('WEBSITE')}</Text>
+                                        <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(details.website!)}>{t('visit website')}</Text>
+                                    </View>
+                                )}
 
-                            {/* Website */}
-                            {details.website && (
-                                <View style={{ marginTop: 10 }}>
-                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('WEBSITE')}</Text>
-                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(details.website!)}>{t('visit website')}</Text>
-                                </View>
-                            )}
-
-                        </View>
-                    </ScrollView>
+                            </View>
+                        </ScrollView>
+                    </TurnstilePage>
                 </View>
 
                 {/* PAGE 2: PHOTOS */}
-                <View key="2" style={styles.page}>
-                    <ScrollView contentContainerStyle={{ padding: 20 }}>
+                <View key="2" style={{ flex: 1 }}>
+                    <TurnstilePage isActive={activePage === 1}>
+                        <ScrollView contentContainerStyle={{ padding: 20 }}>
 
-                        {/* "add a photo" button */}
-                        <View style={{ marginBottom: 20 }}>
-                            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleAddPhotoPress}>
-                                <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.text, justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-                                    <Ionicons name="add" size={24} color={colors.text} />
-                                </View>
-                                <Text style={[GlobalStyles.metroMD, { fontSize: 24, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('add a photo')}</Text>
-                            </TouchableOpacity>
-                        </View>
+                            {/* "add a photo" button */}
+                            <View style={{ marginBottom: 20 }}>
+                                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleAddPhotoPress}>
+                                    <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.text, justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
+                                        <Ionicons name="add" size={24} color={colors.text} />
+                                    </View>
+                                    <Text style={[GlobalStyles.metroMD, { fontSize: 24, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('add a photo')}</Text>
+                                </TouchableOpacity>
+                            </View>
 
-                        {/* 4-Column Grid */}
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                            {details.photos && details.photos.length > 0 ? (
-                                details.photos.map((photo: any, index: number) => (
-                                    <TouchableOpacity key={index} style={{ width: '23.5%', aspectRatio: 1, backgroundColor: colors.border }} onPress={() => setFullScreenPhotoIndex(index)}>
-                                        <Image
-                                            source={{ uri: api.getPhotoUrl(photo.photo_reference, 200) }}
-                                            style={{ width: '100%', height: '100%' }}
-                                            resizeMode="cover"
-                                        />
-                                    </TouchableOpacity>
-                                ))
-                            ) : (
-                                <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No photos available.')}</Text>
-                            )}
-                        </View>
-                    </ScrollView>
+                            {/* 4-Column Grid */}
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                {details.photos && details.photos.length > 0 ? (
+                                    details.photos.map((photo: any, index: number) => (
+                                        <TouchableOpacity key={index} style={{ width: '23.5%', aspectRatio: 1, backgroundColor: colors.border }} onPress={() => setFullScreenPhotoIndex(index)}>
+                                            <Image
+                                                source={{ uri: api.getPhotoUrl(photo.photo_reference, 200) }}
+                                                style={{ width: '100%', height: '100%' }}
+                                                resizeMode="cover"
+                                            />
+                                        </TouchableOpacity>
+                                    ))
+                                ) : (
+                                    <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No photos available.')}</Text>
+                                )}
+                            </View>
+                        </ScrollView>
 
-                    {/* Centered Toast */}
-                    {showAddPhotoToast && (
-                        <Animated.View entering={FadeIn} exiting={FadeOut} style={{ position: 'absolute', alignSelf: 'center', top: '40%', backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 8, zIndex: 50 }}>
-                            <Text style={[GlobalStyles.metroSM, { color: colors.white, fontFamily: getFont('OpenSans_700Bold'), fontSize: 16 }]}>{t('not yet implemented')}</Text>
-                        </Animated.View>
-                    )}
+                        {/* Centered Toast */}
+                        {showAddPhotoToast && (
+                            <Animated.View entering={FadeIn} exiting={FadeOut} style={{ position: 'absolute', alignSelf: 'center', top: '40%', backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 8, zIndex: 50 }}>
+                                <Text style={[GlobalStyles.metroSM, { color: colors.white, fontFamily: getFont('OpenSans_700Bold'), fontSize: 16 }]}>{t('not yet implemented')}</Text>
+                            </Animated.View>
+                        )}
+                    </TurnstilePage>
                 </View>
 
                 {/* PAGE 3: REVIEWS */}
-                <View key="3" style={styles.page}>
-                    <ScrollView contentContainerStyle={{ padding: 20 }}>
-                        {details.reviews && details.reviews.length > 0 ? (
-                            details.reviews.map((review: any, index: number) => (
-                                <View key={index} style={{ marginBottom: 32 }}>
-                                    <Text style={[GlobalStyles.metroMD, { fontFamily: getFont('OpenSans_700Bold'), fontSize: 20, marginBottom: 4, color: colors.text }]}>{review.author_name}</Text>
-                                    <Text style={[GlobalStyles.metroMD, { color: colors.accent, marginBottom: 8, fontFamily: getFont('OpenSans_400Regular') }]}>{review.rating}/5 {t('rating')}</Text>
-                                    <Text style={[GlobalStyles.metroSM, { opacity: 0.9, lineHeight: 22, fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{review.text}</Text>
-                                </View>
-                            ))
-                        ) : (
-                            <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No reviews available.')}</Text>
-                        )}
-                    </ScrollView>
+                <View key="3" style={{ flex: 1 }}>
+                    <TurnstilePage isActive={activePage === 2}>
+                        <ScrollView contentContainerStyle={{ padding: 20 }}>
+                            {details.reviews && details.reviews.length > 0 ? (
+                                details.reviews.map((review: any, index: number) => (
+                                    <View key={index} style={{ marginBottom: 32 }}>
+                                        <Text style={[GlobalStyles.metroMD, { fontFamily: getFont('OpenSans_700Bold'), fontSize: 20, marginBottom: 4, color: colors.text }]}>{review.author_name}</Text>
+                                        <Text style={[GlobalStyles.metroMD, { color: colors.accent, marginBottom: 8, fontFamily: getFont('OpenSans_400Regular') }]}>{review.rating}/5 {t('rating')}</Text>
+                                        <Text style={[GlobalStyles.metroSM, { opacity: 0.9, lineHeight: 22, fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{review.text}</Text>
+                                    </View>
+                                ))
+                            ) : (
+                                <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No reviews available.')}</Text>
+                            )}
+                        </ScrollView>
+                    </TurnstilePage>
                 </View>
 
                 {/* PAGE 4: HOURS */}
-                <View key="4" style={styles.page}>
-                    <ScrollView contentContainerStyle={{ padding: 20 }}>
-                        {details.opening_hours && details.opening_hours.length > 0 ? (
-                            details.opening_hours.map((hourStr: string, index: number) => {
-                                const [day, ...timeParts] = hourStr.split(': ');
-                                const time = timeParts.join(': ');
-                                return (
-                                    <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 }}>
-                                        <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.text, fontFamily: getFont('OpenSans_700Bold') }]}>{day}</Text>
-                                        <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{time}</Text>
-                                    </View>
-                                );
-                            })
-                        ) : (
-                            <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No hours available.')}</Text>
-                        )}
-                    </ScrollView>
+                <View key="4" style={{ flex: 1 }}>
+                    <TurnstilePage isActive={activePage === 3}>
+                        <ScrollView contentContainerStyle={{ padding: 20 }}>
+                            {details.opening_hours && details.opening_hours.length > 0 ? (
+                                details.opening_hours.map((hourStr: string, index: number) => {
+                                    const [day, ...timeParts] = hourStr.split(': ');
+                                    const time = timeParts.join(': ');
+                                    return (
+                                        <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 }}>
+                                            <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.text, fontFamily: getFont('OpenSans_700Bold') }]}>{day}</Text>
+                                            <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{time}</Text>
+                                        </View>
+                                    );
+                                })
+                            ) : (
+                                <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No hours available.')}</Text>
+                            )}
+                        </ScrollView>
+                    </TurnstilePage>
                 </View>
             </PagerView>
 
@@ -347,31 +413,37 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                 }
             ]}>
                 {/* Favorites Button */}
-                <TouchableOpacity style={styles.appBarButton} onPress={onToggleFavorite}>
-                    <View style={[styles.circleButton, { borderColor: colors.text }]}>
-                        <Ionicons name={isFavorite ? "star" : "star-outline"} size={20} color={colors.text} />
-                    </View>
-                    {showLabels && <Text style={{ color: colors.text, fontSize: 12, marginTop: 4, fontFamily: getFont('OpenSans_400Regular') }}>{t('favorite')}</Text>}
-                </TouchableOpacity>
+                <PivotAppBarButton
+                    onPress={onToggleFavorite}
+                    label={t('favorite')}
+                    showLabels={showLabels}
+                    colors={colors}
+                    getFont={getFont}
+                >
+                    <Ionicons name={isFavorite ? "star" : "star-outline"} size={20} color={colors.text} />
+                </PivotAppBarButton>
 
                 {/* Share Button */}
-                <TouchableOpacity style={styles.appBarButton} onPress={async () => {
-                    const url = details.url || `https://www.google.com/maps/search/?api=1&query=${details.lat},${details.lon}&query_place_id=${details.place_id}`;
-                    try {
-                        await Share.share({
-                            message: `${details.display_name}\n${url}`,
-                            url: url,
-                            title: details.display_name,
-                        });
-                    } catch (error) {
-                        // ignore
-                    }
-                }}>
-                    <View style={[styles.circleButton, { borderColor: colors.text }]}>
-                        <Ionicons name="share-social-outline" size={20} color={colors.text} />
-                    </View>
-                    {showLabels && <Text style={{ color: colors.text, fontSize: 12, marginTop: 4, fontFamily: getFont('OpenSans_400Regular') }}>{t('share')}</Text>}
-                </TouchableOpacity>
+                <PivotAppBarButton
+                    onPress={async () => {
+                        const url = details.url || `https://www.google.com/maps/search/?api=1&query=${details.lat},${details.lon}&query_place_id=${details.place_id}`;
+                        try {
+                            await Share.share({
+                                message: `${details.display_name}\n${url}`,
+                                url: url,
+                                title: details.display_name,
+                            });
+                        } catch (error) {
+                            // ignore
+                        }
+                    }}
+                    label={t('share')}
+                    showLabels={showLabels}
+                    colors={colors}
+                    getFont={getFont}
+                >
+                    <Ionicons name="share-social-outline" size={20} color={colors.text} />
+                </PivotAppBarButton>
 
                 {/* Expand Toggle */}
                 <TouchableOpacity
@@ -421,6 +493,97 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                 </View>
             </Modal>
         </Animated.View>
+    );
+}
+
+const METRO_EASING = Easing.bezier(0.1, 0.9, 0.2, 1);
+
+function PivotAppBarButton({ children, onPress, label, showLabels, colors, getFont }: { children: React.ReactNode; onPress: () => void; label: string, showLabels: boolean, colors: any, getFont: (f: string) => string }) {
+    const [isPressed, setIsPressed] = useState(false);
+    const scale = useSharedValue(1);
+    const rotateXVal = useSharedValue(0);
+    const rotateYVal = useSharedValue(0);
+    const translateYVal = useSharedValue(0);
+    const buttonWidth = useSharedValue(48);
+    const buttonHeight = useSharedValue(48);
+
+    const animatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [
+                { perspective: 800 },
+                { translateY: translateYVal.value },
+                { scale: scale.value },
+                { rotateX: `${rotateXVal.value}deg` },
+                { rotateY: `${rotateYVal.value}deg` }
+            ]
+        };
+    });
+
+    const updateTilt = (locX: number, locY: number, duration: number = 60) => {
+        const w = buttonWidth.value || 48;
+        const h = buttonHeight.value || 48;
+        const normalizedX = Math.max(-1.2, Math.min(1.2, (locX / w) * 2 - 1));
+        const normalizedY = Math.max(-1.2, Math.min(1.2, (locY / h) * 2 - 1));
+        const maxRotate = 12; // Subtler tilt for natural feel
+
+        rotateXVal.value = withTiming(-normalizedY * maxRotate, { duration, easing: METRO_EASING });
+        rotateYVal.value = withTiming(normalizedX * maxRotate, { duration, easing: METRO_EASING });
+    };
+
+    const handlePressIn = (e: any) => {
+        setIsPressed(true);
+        updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY, 100);
+        scale.value = withTiming(0.92, { duration: 100, easing: METRO_EASING });
+        translateYVal.value = withSpring(-2, { mass: 1, damping: 12, stiffness: 200 });
+    };
+
+    const handleTouchMove = (e: any) => {
+        updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY, 50);
+    };
+
+    const handlePressOut = () => {
+        setIsPressed(false);
+        rotateXVal.value = withTiming(0, { duration: 150, easing: METRO_EASING });
+        rotateYVal.value = withTiming(0, { duration: 150, easing: METRO_EASING });
+        scale.value = withTiming(1, { duration: 150, easing: METRO_EASING });
+        translateYVal.value = withSpring(0, { mass: 1, damping: 12, stiffness: 200 });
+    };
+
+    const handleLayout = (e: any) => {
+        buttonWidth.value = e.nativeEvent.layout.width;
+        buttonHeight.value = e.nativeEvent.layout.height;
+    };
+
+    return (
+        <Pressable 
+            onPress={onPress} 
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            onTouchMove={handleTouchMove}
+            style={styles.appBarButton}
+        >
+            <Animated.View 
+                onLayout={handleLayout}
+                style={[
+                    styles.circleButton, 
+                    animatedStyle,
+                    { 
+                        borderColor: colors.text,
+                        backgroundColor: isPressed ? colors.accent : 'transparent'
+                    }
+                ]}
+            >
+                {React.Children.map(children, child => {
+                    if (React.isValidElement(child)) {
+                        return React.cloneElement(child as React.ReactElement<any>, {
+                            color: colors.text
+                        });
+                    }
+                    return child;
+                })}
+            </Animated.View>
+            {showLabels && <Text style={{ color: colors.text, fontSize: 12, marginTop: 4, fontFamily: getFont('OpenSans_400Regular') }}>{label}</Text>}
+        </Pressable>
     );
 }
 

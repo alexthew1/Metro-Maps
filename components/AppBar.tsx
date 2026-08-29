@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Text, Dimensions, Linking } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Text, Dimensions, Linking, Pressable } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming, Easing, interpolate, useSharedValue, withSpring, SharedValue } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '../constants/Colors';
@@ -142,7 +142,16 @@ export function AppBar({ hidden, expanded, onExpandChange, onSearchPress, onLoca
 }
 
 // Button that shows label ONLY when expanded
+const METRO_EASING = Easing.bezier(0.1, 0.9, 0.2, 1);
+
 function AppBarButton({ children, onPress, label, expandProgress, colors, getFont }: { children: React.ReactNode; onPress: () => void; label: string, expandProgress: SharedValue<number>, colors: any, getFont: (f: string) => string }) {
+    const [isPressed, setIsPressed] = useState(false);
+    const scale = useSharedValue(1);
+    const rotateXVal = useSharedValue(0);
+    const rotateYVal = useSharedValue(0);
+    const translateYVal = useSharedValue(0);
+    const buttonWidth = useSharedValue(48);
+    const buttonHeight = useSharedValue(48);
 
     const labelStyle = useAnimatedStyle(() => {
         return {
@@ -151,13 +160,84 @@ function AppBarButton({ children, onPress, label, expandProgress, colors, getFon
         };
     });
 
+    const animatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [
+                { perspective: 800 },
+                { translateY: translateYVal.value },
+                { scale: scale.value },
+                { rotateX: `${rotateXVal.value}deg` },
+                { rotateY: `${rotateYVal.value}deg` }
+            ]
+        };
+    });
+
+    const updateTilt = (locX: number, locY: number, duration: number = 60) => {
+        const w = buttonWidth.value || 48;
+        const h = buttonHeight.value || 48;
+        const normalizedX = Math.max(-1.2, Math.min(1.2, (locX / w) * 2 - 1));
+        const normalizedY = Math.max(-1.2, Math.min(1.2, (locY / h) * 2 - 1));
+        const maxRotate = 12; // Subtler tilt for natural feel
+
+        rotateXVal.value = withTiming(-normalizedY * maxRotate, { duration, easing: METRO_EASING });
+        rotateYVal.value = withTiming(normalizedX * maxRotate, { duration, easing: METRO_EASING });
+    };
+
+    const handlePressIn = (e: any) => {
+        setIsPressed(true);
+        updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY, 100);
+        scale.value = withTiming(0.92, { duration: 100, easing: METRO_EASING });
+        translateYVal.value = withSpring(-2, { mass: 1, damping: 12, stiffness: 200 });
+    };
+
+    const handleTouchMove = (e: any) => {
+        updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY, 50);
+    };
+
+    const handlePressOut = () => {
+        setIsPressed(false);
+        rotateXVal.value = withTiming(0, { duration: 150, easing: METRO_EASING });
+        rotateYVal.value = withTiming(0, { duration: 150, easing: METRO_EASING });
+        scale.value = withTiming(1, { duration: 150, easing: METRO_EASING });
+        translateYVal.value = withSpring(0, { mass: 1, damping: 12, stiffness: 200 });
+    };
+
+    const handleLayout = (e: any) => {
+        buttonWidth.value = e.nativeEvent.layout.width;
+        buttonHeight.value = e.nativeEvent.layout.height;
+    };
+
     return (
-        <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={styles.btnContainer}>
-            <View style={[styles.circleIcon, { borderColor: colors.text }]}>
-                {children}
-            </View>
+        <Pressable 
+            onPress={onPress} 
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            onTouchMove={handleTouchMove}
+            style={styles.btnContainer}
+        >
+            <Animated.View 
+                onLayout={handleLayout}
+                style={[
+                    styles.circleIcon, 
+                    animatedStyle,
+                    { 
+                        borderColor: colors.text,
+                        backgroundColor: isPressed ? colors.accent : 'transparent'
+                    }
+                ]}
+            >
+                {React.Children.map(children, child => {
+                    if (React.isValidElement(child)) {
+                        return React.cloneElement(child as React.ReactElement<any>, {
+                            fill: colors.text,
+                            color: colors.text
+                        });
+                    }
+                    return child;
+                })}
+            </Animated.View>
             <Animated.Text style={[styles.label, labelStyle, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{label}</Animated.Text>
-        </TouchableOpacity>
+        </Pressable>
     );
 }
 

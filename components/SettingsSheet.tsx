@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, BackHandler, Pressable } from 'react-native';
 import React, { useEffect } from 'react';
-import Animated, { useAnimatedStyle, withTiming, Easing, useSharedValue, interpolate, interpolateColor } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming, Easing, useSharedValue, interpolate, interpolateColor, FadeInDown, FadeOutUp, Layout } from 'react-native-reanimated';
 import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { GlobalStyles } from '../constants/Styles';
 import { useTranslation } from 'react-i18next';
@@ -8,12 +8,15 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCustomFont } from '../contexts/FontContext';
 import { Colors } from '../constants/Colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MetroToggle } from './MetroToggle';
 
 export type UnitsType = 'metric' | 'imperial' | 'imperial_uk';
 
 interface SettingsSheetProps {
     visible: boolean;
     onClose: () => void;
+    mapTheme: 'light' | 'dark';
+    onMapThemeChange: (val: 'light' | 'dark') => void;
     units: UnitsType;
     onUnitsChange: (val: UnitsType) => void;
     showZoomControls: boolean;
@@ -23,8 +26,9 @@ interface SettingsSheetProps {
     onClearHistory: () => void;
 }
 
-export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoomControls, onShowZoomControlsChange, showUserLocation, onShowUserLocationChange, onClearHistory }: SettingsSheetProps) {
+export function SettingsSheet({ visible, onClose, mapTheme, onMapThemeChange, units, onUnitsChange, showZoomControls, onShowZoomControlsChange, showUserLocation, onShowUserLocationChange, onClearHistory }: SettingsSheetProps) {
     const insets = useSafeAreaInsets();
+    const [mapThemeExpanded, setMapThemeExpanded] = React.useState(false);
     const [unitsExpanded, setUnitsExpanded] = React.useState(false);
     const [langExpanded, setLangExpanded] = React.useState(false);
     const [themeExpanded, setThemeExpanded] = React.useState(false);
@@ -42,6 +46,7 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
     // Reset local state when closing/opening
     useEffect(() => {
         if (!visible) {
+            setMapThemeExpanded(false);
             setUnitsExpanded(false);
             setLangExpanded(false);
             setThemeExpanded(false);
@@ -51,7 +56,13 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
     const animatedStyle = useAnimatedStyle(() => {
         return {
             opacity: withTiming(visible ? 1 : 0, { duration: 200 }),
-            transform: [{ translateX: withTiming(visible ? 0 : 50, { duration: 200 }) }], // Slide in slight effect
+            transform: [
+                { perspective: 1000 },
+                { rotateY: withTiming(visible ? '0deg' : '-90deg', { 
+                    duration: 250, 
+                    easing: Easing.out(Easing.cubic) 
+                }) }
+            ],
             pointerEvents: visible ? 'auto' : 'none',
         };
     }, [visible]);
@@ -88,7 +99,7 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
                         <Text style={[styles.inputText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{themeMode === 'light' ? t('Light') : themeMode === 'dark' ? t('Dark') : t('System')}</Text>
                     </TouchableOpacity>
                     {themeExpanded && (
-                        <View style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                        <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOutUp.duration(200)} layout={Layout.springify().damping(15)} style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
                             {themeMode !== 'light' && (
                                 <TouchableOpacity
                                     style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
@@ -122,7 +133,44 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
                                     <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('System')}</Text>
                                 </TouchableOpacity>
                             )}
-                        </View>
+                        </Animated.View>
+                    )}
+                </View>
+
+                {/* Map Theme Picker */}
+                <View style={[styles.settingRow, { marginTop: 20 }]}>
+                    <Text style={[styles.settingLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Map Theme')}</Text>
+                    <TouchableOpacity
+                        style={[styles.inputBox, { borderColor: colors.border }, mapThemeExpanded && { borderBottomColor: 'transparent', paddingBottom: verticalScale(5) }]}
+                        onPress={() => setMapThemeExpanded(!mapThemeExpanded)}
+                    >
+                        <Text style={[styles.inputText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{mapTheme === 'light' ? t('Light') : t('Dark')}</Text>
+                    </TouchableOpacity>
+                    {mapThemeExpanded && (
+                        <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOutUp.duration(200)} layout={Layout.springify().damping(15)} style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                            {mapTheme !== 'light' && (
+                                <TouchableOpacity
+                                    style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                    onPress={() => {
+                                        onMapThemeChange('light');
+                                        setMapThemeExpanded(false);
+                                    }}
+                                >
+                                    <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Light')}</Text>
+                                </TouchableOpacity>
+                            )}
+                            {mapTheme !== 'dark' && (
+                                <TouchableOpacity
+                                    style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                    onPress={() => {
+                                        onMapThemeChange('dark');
+                                        setMapThemeExpanded(false);
+                                    }}
+                                >
+                                    <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Dark')}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </Animated.View>
                     )}
                 </View>
 
@@ -138,7 +186,7 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
                         </Text>
                     </TouchableOpacity>
                     {langExpanded && (
-                        <View style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                        <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOutUp.duration(200)} layout={Layout.springify().damping(15)} style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
                             {i18n.language !== 'en' && (
                                 <TouchableOpacity
                                     style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
@@ -183,7 +231,7 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
                                     <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>Português</Text>
                                 </TouchableOpacity>
                             )}
-                        </View>
+                        </Animated.View>
                     )}
                 </View>
 
@@ -212,7 +260,7 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
                         <Text style={[styles.inputText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{units === 'metric' ? t('metric') : units === 'imperial' ? t('imperial') : t('imperial UK')}</Text>
                     </TouchableOpacity>
                     {unitsExpanded && (
-                        <View style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                        <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOutUp.duration(200)} layout={Layout.springify().damping(15)} style={[styles.inlineDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
                             {units !== 'metric' && (
                                 <TouchableOpacity
                                     style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
@@ -246,7 +294,7 @@ export function SettingsSheet({ visible, onClose, units, onUnitsChange, showZoom
                                     <Text style={[styles.dropdownText, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('imperial UK')}</Text>
                                 </TouchableOpacity>
                             )}
-                        </View>
+                        </Animated.View>
                     )}
                 </View>
 
@@ -284,76 +332,6 @@ function AnimatedDropdown({ expanded, children }: { expanded: boolean, children:
     )
 }
 
-function MetroToggle({ value, onValueChange, colors }: { value: boolean, onValueChange: (val: boolean) => void, colors: typeof Colors.light }) {
-    const progress = useSharedValue(value ? 1 : 0);
-
-    useEffect(() => {
-        progress.value = withTiming(value ? 1 : 0, { duration: 200 });
-    }, [value]);
-
-    const toggleWidth = 80;
-    const toggleHeight = 32;
-    const borderWidth = 2;
-    const gap = 2;
-    const handleWidth = 14;
-
-    const innerWidth = toggleWidth - (borderWidth * 2);
-    
-    const handleMinLeft = gap;
-    const handleMaxLeft = innerWidth - gap - handleWidth;
-    const fillMaxWidth = handleMaxLeft - (gap * 2);
-
-    const borderColorAnimated = useAnimatedStyle(() => {
-        return {
-            borderColor: interpolateColor(progress.value, [0, 1], [colors.textDim, colors.text])
-        };
-    });
-
-    const handleColorAnimated = useAnimatedStyle(() => {
-        return {
-            backgroundColor: interpolateColor(progress.value, [0, 1], [colors.textDim, colors.text])
-        };
-    });
-
-    const fillStyle = useAnimatedStyle(() => {
-        return {
-            width: interpolate(progress.value, [0, 1], [0, fillMaxWidth]),
-            backgroundColor: colors.accent,
-            height: toggleHeight - (borderWidth * 2) - (gap * 2),
-            marginLeft: gap,
-            marginTop: gap,
-        };
-    });
-
-    const handleStyle = useAnimatedStyle(() => {
-        return {
-            left: interpolate(progress.value, [0, 1], [handleMinLeft, handleMaxLeft]),
-        };
-    });
-
-    return (
-        <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => onValueChange(!value)}
-            style={{ position: 'absolute', right: 0, top: verticalScale(10), width: toggleWidth, height: toggleHeight, justifyContent: 'center' }}
-        >
-            <Animated.View style={[{
-                width: toggleWidth,
-                height: toggleHeight,
-                borderWidth: borderWidth,
-                backgroundColor: 'transparent',
-            }, borderColorAnimated]}>
-                <Animated.View style={fillStyle} />
-                <Animated.View style={[{
-                    position: 'absolute',
-                    width: handleWidth,
-                    height: toggleHeight - (borderWidth * 2) - (gap * 2),
-                    top: gap,
-                }, handleColorAnimated, handleStyle]} />
-            </Animated.View>
-        </TouchableOpacity>
-    );
-}
 
 const styles = StyleSheet.create({
     container: {

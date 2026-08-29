@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import React, { useEffect } from 'react';
-import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -29,7 +29,13 @@ export function AboutSheet({ visible, onClose }: AboutSheetProps) {
     const animatedStyle = useAnimatedStyle(() => {
         return {
             opacity: withTiming(visible ? 1 : 0, { duration: 200 }),
-            transform: [{ translateX: withTiming(visible ? 0 : 50, { duration: 200 }) }],
+            transform: [
+                { perspective: 1000 },
+                { rotateY: withTiming(visible ? '0deg' : '-90deg', { 
+                    duration: 250, 
+                    easing: Easing.out(Easing.cubic) 
+                }) }
+            ],
             pointerEvents: visible ? 'auto' : 'none',
         };
     }, [visible]);
@@ -57,7 +63,7 @@ export function AboutSheet({ visible, onClose }: AboutSheetProps) {
             <View style={styles.content}>
                 <View style={styles.infoRow}>
                     <Text style={[styles.label, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Version')}</Text>
-                    <Text style={[styles.value, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>1.4</Text>
+                    <Text style={[styles.value, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>1.6</Text>
                 </View>
 
                 <View style={styles.infoRow}>

@@ -39,6 +39,7 @@ export default function HomeScreen() {
     const [mapType, setMapType] = useState<'standard' | 'satellite'>('standard');
     const [showLabels, setShowLabels] = useState(true);
     const [showsBuildings, setShowsBuildings] = useState(true);
+    const [mapTheme, setMapTheme] = useState<'light' | 'dark'>('light');
     const [units, setUnits] = useState<UnitsType>('metric'); // Will be loaded from storage
     const [showZoomControls, setShowZoomControls] = useState(false);
     const [showUserLocation, setShowUserLocation] = useState(true);
@@ -72,6 +73,7 @@ export default function HomeScreen() {
     // Load units preference from storage (auto-detects from locale if not set)
     // Load persisted settings (units, last region, api key, zoom)
     useEffect(() => {
+        SettingsService.getMapTheme().then(setMapTheme);
         SettingsService.getUnits().then(setUnits);
         SettingsService.getZoomControls().then(setShowZoomControls);
         SettingsService.getLastRegion().then((region) => {
@@ -87,6 +89,11 @@ export default function HomeScreen() {
     const handleUnitsChange = (newUnits: UnitsType) => {
         setUnits(newUnits);
         SettingsService.setUnits(newUnits);
+    };
+
+    const handleMapThemeChange = (theme: 'light' | 'dark') => {
+        setMapTheme(theme);
+        SettingsService.setMapTheme(theme);
     };
 
     const handleZoomControlsChange = (enabled: boolean) => {
@@ -416,6 +423,7 @@ export default function HomeScreen() {
                 selectedRouteIndex={selectedRouteIndex}
                 onSelectRoute={setSelectedRouteIndex}
                 mapType={mapType}
+                mapTheme={mapTheme}
                 showLabels={showLabels}
                 showsBuildings={showsBuildings}
                 showZoomControls={showZoomControls}
@@ -528,6 +536,7 @@ export default function HomeScreen() {
                             onGetDirections={handleGetDirections}
                             isFavorite={selectedPlace ? favorites.some(f => f.place_id === selectedPlace.place_id) : false}
                             onToggleFavorite={() => selectedPlace && handleToggleFavorite(selectedPlace)}
+                            mapTheme={mapTheme}
                         />
                     )}
 
@@ -543,6 +552,8 @@ export default function HomeScreen() {
                     <SettingsSheet
                         visible={settingsVisible}
                         onClose={() => setSettingsVisible(false)}
+                        mapTheme={mapTheme}
+                        onMapThemeChange={handleMapThemeChange}
                         units={units}
                         onUnitsChange={handleUnitsChange}
                         showZoomControls={showZoomControls}

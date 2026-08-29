@@ -5,8 +5,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/Colors';
 import { GlobalStyles } from '../constants/Styles';
 import { MetroButton } from './MetroButton';
+import { MetroToggle } from './MetroToggle';
 import { SettingsService, UnitsType } from '../services/settings';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, withDelay, interpolate, interpolateColor } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, withDelay } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCustomFont } from '../contexts/FontContext';
@@ -32,77 +33,6 @@ const FadeInView = ({ children, delay = 0, style }: any) => {
 
     return <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>;
 };
-
-function MetroToggle({ value, onValueChange, colors }: { value: boolean, onValueChange: (val: boolean) => void, colors: typeof Colors.light }) {
-    const progress = useSharedValue(value ? 1 : 0);
-
-    useEffect(() => {
-        progress.value = withTiming(value ? 1 : 0, { duration: 200 });
-    }, [value]);
-
-    const toggleWidth = 80;
-    const toggleHeight = 32;
-    const borderWidth = 2;
-    const gap = 2;
-    const handleWidth = 14;
-
-    const innerWidth = toggleWidth - (borderWidth * 2);
-    
-    const handleMinLeft = gap;
-    const handleMaxLeft = innerWidth - gap - handleWidth;
-    const fillMaxWidth = handleMaxLeft - (gap * 2);
-
-    const borderColorAnimated = useAnimatedStyle(() => {
-        return {
-            borderColor: interpolateColor(progress.value, [0, 1], [colors.textDim, colors.text])
-        };
-    });
-
-    const handleColorAnimated = useAnimatedStyle(() => {
-        return {
-            backgroundColor: interpolateColor(progress.value, [0, 1], [colors.textDim, colors.text])
-        };
-    });
-
-    const fillStyle = useAnimatedStyle(() => {
-        return {
-            width: interpolate(progress.value, [0, 1], [0, fillMaxWidth]),
-            backgroundColor: colors.accent,
-            height: toggleHeight - (borderWidth * 2) - (gap * 2),
-            marginLeft: gap,
-            marginTop: gap,
-        };
-    });
-
-    const handleStyle = useAnimatedStyle(() => {
-        return {
-            left: interpolate(progress.value, [0, 1], [handleMinLeft, handleMaxLeft]),
-        };
-    });
-
-    return (
-        <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => onValueChange(!value)}
-            style={{ position: 'absolute', right: 0, top: verticalScale(10), width: toggleWidth, height: toggleHeight, justifyContent: 'center' }}
-        >
-            <Animated.View style={[{
-                width: toggleWidth,
-                height: toggleHeight,
-                borderWidth: borderWidth,
-                backgroundColor: 'transparent',
-            }, borderColorAnimated]}>
-                <Animated.View style={fillStyle} />
-                <Animated.View style={[{
-                    position: 'absolute',
-                    width: handleWidth,
-                    height: toggleHeight - (borderWidth * 2) - (gap * 2),
-                    top: gap,
-                }, handleColorAnimated, handleStyle]} />
-            </Animated.View>
-        </TouchableOpacity>
-    );
-}
 
 export function SetupScreen({ onComplete }: SetupScreenProps) {
     const insets = useSafeAreaInsets();
