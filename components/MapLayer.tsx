@@ -426,10 +426,25 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
                     );
                 })}
 
-                {/* Route Line - Multi-color for traffic */}
+                {/* Route Line - Transit or Multi-color for traffic */}
                 {route && displayCoordinates.length > 1 && (
                     <>
                         {(() => {
+                            if (route.travelMode === 'transit') {
+                                const transitColor = (route.transitLines && route.transitLines[0]?.color) || '#0085d0';
+                                return (
+                                    <Polyline
+                                        key={`route-transit-${route.geometry}`}
+                                        coordinates={displayCoordinates}
+                                        strokeColor={transitColor}
+                                        strokeWidth={6}
+                                        lineCap="round"
+                                        lineJoin="round"
+                                        zIndex={995}
+                                    />
+                                );
+                            }
+
                             if (!route.speedReadingIntervals || route.speedReadingIntervals.length === 0) {
                                 return (
                                     <Polyline

@@ -34,12 +34,42 @@ export interface SearchResult {
     url?: string; // Google Maps URL
 }
 
+export interface TransitDetails {
+    lineName: string;
+    lineShortName?: string;
+    color?: string;
+    textColor?: string;
+    vehicleType?: 'SUBWAY' | 'BUS' | 'TRAIN' | 'TRAM' | 'HEAVY_RAIL' | 'FERRY' | string;
+    departureStop?: string;
+    arrivalStop?: string;
+    stopCount?: number;
+    headsign?: string;
+    departureTime?: string;
+    arrivalTime?: string;
+}
+
+export interface RouteManeuver {
+    name: string;
+    maneuver: {
+        location: [number, number]; // [Lon, Lat]
+        type: string;
+        modifier?: string;
+        icon?: string;
+        bearing_after?: number;
+    };
+    distance?: number;
+    duration?: number;
+    transitDetails?: TransitDetails;
+}
+
 export interface RouteResult {
     distance: number; // meters
     duration: number; // seconds
     geometry: string; // polyline string
     coordinates: { latitude: number; longitude: number }[]; // decoded
-    maneuvers: any[]; // refined later
+    maneuvers: RouteManeuver[];
+    travelMode?: 'driving' | 'walking' | 'transit';
+    transitLines?: { name: string; color?: string; vehicleType?: string }[];
     bounds?: { // Google Directions viewport bounds
         northeast: { lat: number; lng: number };
         southwest: { lat: number; lng: number };
@@ -271,22 +301,52 @@ export const api = {
                     // Transit details are nested differently in Routes API
                     if (routeMode === 'TRANSIT' && step.transitDetails) {
                         const transit = step.transitDetails;
-                        const lineName = transit.transitLine?.name || transit.transitLine?.nameShort || 'Transit';
+                        const line = transit.transitLine || {};
+                        const vehicle = line.vehicle || {};
+                        const stopDetails = transit.stopDetails || {};
+
+                        const lineName = line.name || line.nameShort || 'Transit';
+                        const lineShortName = line.nameShort || line.name || 'Transit';
                         const headsign = transit.headsign || '';
+                        const departureStop = stopDetails.departureStop?.name || '';
+                        const arrivalStop = stopDetails.arrivalStop?.name || '';
+                        const stopCount = transit.stopCount || 0;
+                        const vehicleType = (vehicle.type || 'SUBWAY').toUpperCase();
+                        const color = line.color || (vehicleType === 'SUBWAY' ? '#0085d0' : vehicleType === 'BUS' ? '#27ae60' : '#e67e22');
+                        const textColor = line.textColor || '#ffffff';
+
+                        const transitInfo: TransitDetails = {
+                            lineName: lineName,
+                            lineShortName: lineShortName,
+                            color: color,
+                            textColor: textColor,
+                            vehicleType: vehicleType,
+                            departureStop: departureStop,
+                            arrivalStop: arrivalStop,
+                            stopCount: stopCount,
+                            headsign: headsign,
+                            departureTime: stopDetails.departureTime,
+                            arrivalTime: stopDetails.arrivalTime,
+                        };
+
+                        let stepTitle = `${lineShortName}`;
+                        if (headsign) stepTitle += ` to ${headsign}`;
+                        if (departureStop) stepTitle += ` from ${departureStop}`;
 
                         return {
-                            name: `${lineName} to ${headsign}`,
+                            name: stepTitle,
                             maneuver: {
-                                location: [step.startLocation.latLng.longitude, step.startLocation.latLng.latitude],
+                                location: [step.startLocation?.latLng?.longitude || 0, step.startLocation?.latLng?.latitude || 0],
                                 type: 'transit',
-                                modifier: (transit.transitLine?.vehicle?.type || 'transit').toLowerCase(),
+                                modifier: vehicleType.toLowerCase(),
                             },
-                            distance: step.distanceMeters,
+                            distance: step.distanceMeters || 0,
                             duration: parseInt(step.staticDuration || '0'),
+                            transitDetails: transitInfo,
                         };
                     }
 
-                    // Standard Driving/Walking
+                    // Standard Driving/Walking or Walking segment in transit route
                     const rawManeuver = (nav.maneuver || 'STRAIGHT').toLowerCase();
                     let type = 'turn';
                     let modifier = 'straight';
@@ -300,18 +360,18 @@ export const api = {
                     if (rawManeuver.includes('exit') || rawManeuver.includes('ramp')) type = 'off ramp';
 
                     const instructions = nav.instructions || rawManeuver.replace(/_/g, ' ');
-                    if (routeMode === 'WALK' && !modifier) type = 'walk';
+                    if ((routeMode === 'WALK' || routeMode === 'TRANSIT') && !modifier) type = 'walk';
 
                     return {
-                        name: instructions,
+                        name: instructions || (routeMode === 'TRANSIT' ? `Walk ${Math.round(step.distanceMeters || 0)}m` : 'Continue straight'),
                         maneuver: {
-                            location: [step.startLocation.latLng.longitude, step.startLocation.latLng.latitude], // [Lon, Lat]
+                            location: [step.startLocation?.latLng?.longitude || 0, step.startLocation?.latLng?.latitude || 0], // [Lon, Lat]
                             type: type,
                             modifier: modifier,
                             icon: rawManeuver, // Store raw google maneuver string for icon fetching
                             bearing_after: 0,
                         },
-                        distance: step.distanceMeters,
+                        distance: step.distanceMeters || 0,
                         duration: parseInt(step.staticDuration || '0'),
                     };
                 });
@@ -320,9 +380,26 @@ export const api = {
                 maneuvers.push({
                     name: "Arrive at Destination",
                     maneuver: {
-                        location: [leg.endLocation.latLng.longitude, leg.endLocation.latLng.latitude],
+                        location: [leg.endLocation?.latLng?.longitude || 0, leg.endLocation?.latLng?.latitude || 0],
                         type: 'arrive',
                         modifier: 'straight',
+                    }
+                });
+
+                // Extract unique transit lines used in this route
+                const transitLines: { name: string; color?: string; vehicleType?: string }[] = [];
+                const seenLines = new Set<string>();
+                maneuvers.forEach((m: RouteManeuver) => {
+                    if (m.transitDetails) {
+                        const key = m.transitDetails.lineShortName || m.transitDetails.lineName;
+                        if (!seenLines.has(key)) {
+                            seenLines.add(key);
+                            transitLines.push({
+                                name: key,
+                                color: m.transitDetails.color,
+                                vehicleType: m.transitDetails.vehicleType,
+                            });
+                        }
                     }
                 });
 
@@ -346,6 +423,8 @@ export const api = {
                     geometry: encodedPolyline || Date.now().toString(), 
                     coordinates: allCoordinates, 
                     maneuvers: maneuvers,
+                    travelMode: mode,
+                    transitLines: transitLines,
                     speedReadingIntervals: speedReadingIntervals,
                     bounds: route.viewport ? { 
                         northeast: { lat: route.viewport.high.latitude, lng: route.viewport.high.longitude },

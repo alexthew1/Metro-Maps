@@ -50,7 +50,7 @@ export default function HomeScreen() {
     const [activeNavigation, setActiveNavigation] = useState(false);
     const [isFollowing, setIsFollowing] = useState(true); // Track if camera follows user
     const [mapHeading, setMapHeading] = useState(0);
-    const [transportMode, setTransportMode] = useState<'driving' | 'walking'>('driving');
+    const [transportMode, setTransportMode] = useState<'driving' | 'walking' | 'transit'>('driving');
 
     // Sheet States
     const [resultsState, setResultsState] = useState<'hidden' | 'peek' | 'expanded'>('hidden');
@@ -325,7 +325,7 @@ export default function HomeScreen() {
     };
 
     // Hijack handleTransportModeChange to just update state if in setup mode, or fetch if in routing
-    const handleTransportModeChange = async (mode: 'driving' | 'walking') => {
+    const handleTransportModeChange = async (mode: 'driving' | 'walking' | 'transit') => {
         setTransportMode(mode);
         if (navStep === 'setup') return; // Just update state
 

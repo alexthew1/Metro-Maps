@@ -19,8 +19,8 @@ interface NavigationSheetProps {
     state: 'hidden' | 'peek' | 'expanded';
     onStateChange: (state: 'hidden' | 'peek' | 'expanded') => void;
     onStartNavigation?: () => void;
-    transportMode?: 'driving' | 'walking';
-    onModeChange?: (mode: 'driving' | 'walking') => void;
+    transportMode?: 'driving' | 'walking' | 'transit';
+    onModeChange?: (mode: 'driving' | 'walking' | 'transit') => void;
     error?: string | null;
     useMiles?: boolean;
     // New Props for Setup Mode
@@ -77,13 +77,16 @@ export function NavigationSheet({ routes = [], selectedRouteIndex = 0, onSelectR
     if (step === 'setup') {
         const SetupHeader = (
             <View style={[styles.header, { backgroundColor: colors.background }]}>
-                {/* Transport Modes at top - Right aligned (walking + driving only) */}
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: horizontalScale(30), marginBottom: verticalScale(20) }}>
+                {/* Transport Modes at top - Right aligned (walking, driving, transit) */}
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: horizontalScale(24), marginBottom: verticalScale(20) }}>
                     <TouchableOpacity onPress={() => onModeChange?.('walking')}>
                         <Ionicons name="walk" size={normalizeFont(26)} color={transportMode === 'walking' ? colors.text : colors.textDim} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => onModeChange?.('driving')}>
                         <Ionicons name="car" size={normalizeFont(26)} color={transportMode === 'driving' ? colors.text : colors.textDim} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => onModeChange?.('transit')}>
+                        <Ionicons name="subway" size={normalizeFont(24)} color={transportMode === 'transit' ? colors.text : colors.textDim} />
                     </TouchableOpacity>
                 </View>
 
@@ -125,7 +128,6 @@ export function NavigationSheet({ routes = [], selectedRouteIndex = 0, onSelectR
 
         return (
             <BottomSheet visible={true} state={state} onStateChange={onStateChange} header={SetupHeader} peekHeight={180}>
-                {/* Empty Content for now */}
                 <View style={[styles.content, { paddingBottom: insets.bottom + 20, minHeight: 100 }]} />
             </BottomSheet>
         );
@@ -155,6 +157,9 @@ export function NavigationSheet({ routes = [], selectedRouteIndex = 0, onSelectR
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => onModeChange?.('driving')}>
                         <Ionicons name="car" size={normalizeFont(26)} color={transportMode === 'driving' ? colors.text : colors.textDim} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => onModeChange?.('transit')}>
+                        <Ionicons name="subway" size={normalizeFont(24)} color={transportMode === 'transit' ? colors.text : colors.textDim} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -186,7 +191,7 @@ export function NavigationSheet({ routes = [], selectedRouteIndex = 0, onSelectR
                                 onPress={() => onSelectRoute?.(idx)}
                                 style={{
                                     paddingVertical: verticalScale(10),
-                                    paddingHorizontal: horizontalScale(20),
+                                    paddingHorizontal: horizontalScale(16),
                                     borderWidth: 2,
                                     borderColor: idx === selectedRouteIndex ? colors.text : colors.border,
                                     backgroundColor: idx === selectedRouteIndex ? colors.accent : colors.background,
@@ -195,6 +200,15 @@ export function NavigationSheet({ routes = [], selectedRouteIndex = 0, onSelectR
                                     alignItems: 'center',
                                 }}
                             >
+                                {r.transitLines && r.transitLines.length > 0 && (
+                                    <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                        {r.transitLines.map((tl, i) => (
+                                            <View key={i} style={{ backgroundColor: tl.color || '#0085d0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 2 }}>
+                                                <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>{tl.name}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                )}
                                 <Text style={{ fontFamily: getFont('OpenSans_600SemiBold'), fontSize: normalizeFont(14), color: idx === selectedRouteIndex ? Colors.white : colors.text, marginBottom: verticalScale(2) }}>
                                     {t('route')} {idx + 1}
                                 </Text>
@@ -220,15 +234,72 @@ export function NavigationSheet({ routes = [], selectedRouteIndex = 0, onSelectR
                     </View>
                 ) : (
                     <>
-                        {route?.maneuvers.map((step, index) => (
-                            <View key={index} style={styles.maneuver}>
-                                <Text style={[styles.arrow, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{getArrow(step.maneuver?.modifier)}</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={[GlobalStyles.metroMD, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{step.maneuver?.type === 'transit' ? t('Take Public Transit') : (step.maneuver?.type ? t(step.maneuver.type) : t('Go straight'))}</Text>
-                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{step.name || t('on road')}</Text>
+                        {route?.maneuvers.map((step, index) => {
+                            if (step.transitDetails) {
+                                return (
+                                    <View key={index} style={styles.transitStepContainer}>
+                                        <View style={{ alignItems: 'center', width: horizontalScale(48) }}>
+                                            <View style={[styles.transitBadge, { backgroundColor: step.transitDetails.color || colors.accent }]}>
+                                                <Ionicons
+                                                    name={step.transitDetails.vehicleType?.toLowerCase().includes('bus') ? 'bus' : 'subway'}
+                                                    size={14}
+                                                    color={step.transitDetails.textColor || '#ffffff'}
+                                                />
+                                                <Text style={[styles.transitBadgeText, { color: step.transitDetails.textColor || '#ffffff' }]} numberOfLines={1}>
+                                                    {step.transitDetails.lineShortName || step.transitDetails.lineName}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.transitLineBar, { backgroundColor: step.transitDetails.color || colors.accent }]} />
+                                        </View>
+
+                                        <View style={{ flex: 1, paddingBottom: verticalScale(22) }}>
+                                            <Text style={[GlobalStyles.metroMD, { color: colors.text, fontFamily: getFont('OpenSans_600SemiBold'), fontSize: normalizeFont(16) }]}>
+                                                {step.transitDetails.departureStop ? `${t('Board at')} ${step.transitDetails.departureStop}` : step.name}
+                                            </Text>
+                                            {step.transitDetails.headsign ? (
+                                                <Text style={[GlobalStyles.metroSM, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular'), marginTop: 2 }]}>
+                                                    {t('Toward')}: {step.transitDetails.headsign}
+                                                </Text>
+                                            ) : null}
+                                            {step.transitDetails.stopCount ? (
+                                                <Text style={[GlobalStyles.metroSM, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular'), marginTop: 3 }]}>
+                                                    {step.transitDetails.stopCount} {step.transitDetails.stopCount === 1 ? t('stop') : t('stops')}
+                                                    {step.transitDetails.arrivalStop ? ` ${t('to')} ${step.transitDetails.arrivalStop}` : ''}
+                                                </Text>
+                                            ) : null}
+                                        </View>
+                                    </View>
+                                );
+                            }
+
+                            if (step.maneuver?.type === 'walk') {
+                                return (
+                                    <View key={index} style={styles.transitStepContainer}>
+                                        <View style={{ alignItems: 'center', width: horizontalScale(48) }}>
+                                            <View style={[styles.walkBadge, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                                                <Ionicons name="walk" size={16} color={colors.text} />
+                                            </View>
+                                            <View style={[styles.walkDottedBar, { borderColor: colors.border }]} />
+                                        </View>
+                                        <View style={{ flex: 1, paddingBottom: verticalScale(22) }}>
+                                            <Text style={[GlobalStyles.metroMD, { color: colors.text, fontFamily: getFont('OpenSans_400Regular'), fontSize: normalizeFont(15) }]}>
+                                                {step.name}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                );
+                            }
+
+                            return (
+                                <View key={index} style={styles.maneuver}>
+                                    <Text style={[styles.arrow, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{getArrow(step.maneuver?.modifier)}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[GlobalStyles.metroMD, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{step.maneuver?.type ? t(step.maneuver.type) : t('Go straight')}</Text>
+                                        <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{step.name || t('on road')}</Text>
+                                    </View>
                                 </View>
-                            </View>
-                        ))}
+                            );
+                        })}
 
                         {/* Start Navigation Button */}
                         <MetroButton title={t('start navigation')} variant="outlined" onPress={() => route && onStartNavigation && onStartNavigation()} />
@@ -273,5 +344,46 @@ const styles = StyleSheet.create({
         fontSize: normalizeFont(40),
         width: horizontalScale(50),
         lineHeight: normalizeFont(40),
-    }
+    },
+    transitStepContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        minHeight: verticalScale(60),
+    },
+    transitBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+        borderRadius: 3,
+        zIndex: 2,
+    },
+    transitBadgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    transitLineBar: {
+        width: 3,
+        flex: 1,
+        minHeight: 30,
+        marginTop: 2,
+    },
+    walkBadge: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        borderWidth: 1.5,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+    },
+    walkDottedBar: {
+        width: 1,
+        flex: 1,
+        minHeight: 25,
+        borderStyle: 'dashed',
+        borderWidth: 1,
+        marginTop: 2,
+    },
 });
