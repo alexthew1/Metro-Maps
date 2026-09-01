@@ -68,9 +68,13 @@ export default function HomeScreen() {
     // Load Favorites
     useEffect(() => {
         loadFavorites();
-    }, []);
+    }, [pivotActive, favoritesState]);
 
-    // Load units preference from storage (auto-detects from locale if not set)
+    const loadFavorites = async () => {
+        const favs = await FavoritesService.getFavorites();
+        setFavorites(favs);
+    };
+
     // Load persisted settings (units, last region, api key, zoom)
     useEffect(() => {
         SettingsService.getMapTheme().then(setMapTheme);
@@ -107,11 +111,6 @@ export default function HomeScreen() {
             setAppMenuVisible(false);
         }
     }, [settingsVisible, aboutVisible, optionsActive, favoritesState, searchActive]);
-
-    const loadFavorites = async () => {
-        const favs = await FavoritesService.getFavorites();
-        setFavorites(favs);
-    };
 
     const handleToggleFavorite = async (place: SearchResult) => {
         const isFav = await FavoritesService.isFavorite(place.place_id);
@@ -357,6 +356,7 @@ export default function HomeScreen() {
         setNavState('hidden');
         setActiveNavigation(true);
         setIsFollowing(true);
+        setSearchResults([]); // Clear all markers except destination
         Speech.speak("Driving mode started.");
     };
 
@@ -566,11 +566,11 @@ export default function HomeScreen() {
                     <FavoritesSheet
                         state={favoritesState}
                         onStateChange={setFavoritesState}
+                        onFavoritesChange={loadFavorites}
                         onSelect={(item) => {
                             setFavoritesState('hidden');
                             setSelectedPlace(item);
-                            setPivotActive(item.place_id !== 'dummy'); // Only pivot if valid
-                            // Pivot logic needs ensuring valid item or just re-using same logic
+                            loadFavorites();
                             setPivotActive(true);
                             setMapRegion({
                                 latitude: parseFloat(item.lat),

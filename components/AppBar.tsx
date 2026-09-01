@@ -212,6 +212,7 @@ function AppBarButton({ children, onPress, label, expandProgress, colors, getFon
             onPress={onPress} 
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
+            onTouchCancel={handlePressOut}
             onTouchMove={handleTouchMove}
             style={styles.btnContainer}
         >

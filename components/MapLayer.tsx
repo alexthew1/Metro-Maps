@@ -480,14 +480,8 @@ export function MapLayer({ userLocation, destination, results = [], routes = [],
                             e.stopPropagation();
                             onPinPress(destination);
                         }}
-                        anchor={{ x: 0.5, y: 1 }}
                         zIndex={100}
-                    >
-                        <MetroMapMarker
-                            item={destination}
-                            isSelected={true}
-                        />
-                    </Marker>
+                    />
                 )}
             </MapView>
 

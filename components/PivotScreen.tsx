@@ -37,58 +37,30 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const TurnstileEnter = new Keyframe({
     0: {
-        transform: [{ perspective: 1000 }, { rotateY: '-90deg' }],
+        transform: [{ perspective: 1000 }, { rotateY: '-25deg' }, { translateX: SCREEN_WIDTH * 0.12 }],
         opacity: 0,
         // @ts-ignore
         easing: Easing.out(Easing.cubic)
     },
     100: {
-        transform: [{ perspective: 1000 }, { rotateY: '0deg' }],
+        transform: [{ perspective: 1000 }, { rotateY: '0deg' }, { translateX: 0 }],
         opacity: 1,
     },
 });
 
 const TurnstileExit = new Keyframe({
     0: {
-        transform: [{ perspective: 1000 }, { rotateY: '0deg' }],
+        transform: [{ perspective: 1000 }, { rotateY: '0deg' }, { translateX: 0 }],
         opacity: 1,
         // @ts-ignore
         easing: Easing.in(Easing.cubic)
     },
     100: {
-        transform: [{ perspective: 1000 }, { rotateY: '-90deg' }],
+        transform: [{ perspective: 1000 }, { rotateY: '-25deg' }, { translateX: SCREEN_WIDTH * 0.12 }],
         opacity: 0,
     },
 });
 
-function TurnstilePage({ isActive, children }: { isActive: boolean; children: React.ReactNode }) {
-    const animatedStyle = useAnimatedStyle(() => {
-        return {
-            opacity: withTiming(isActive ? 1 : 0.25, { duration: 250 }),
-            transform: [
-                { perspective: 1000 },
-                {
-                    rotateY: withTiming(isActive ? '0deg' : '-35deg', {
-                        duration: 300,
-                        easing: Easing.out(Easing.cubic),
-                    })
-                },
-                {
-                    translateX: withTiming(isActive ? 0 : 25, {
-                        duration: 300,
-                        easing: Easing.out(Easing.cubic),
-                    })
-                }
-            ],
-        };
-    }, [isActive]);
-
-    return (
-        <Animated.View style={[styles.page, animatedStyle]}>
-            {children}
-        </Animated.View>
-    );
-}
 
 interface PivotScreenProps {
     item: SearchResult | null;
@@ -109,7 +81,7 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
     const [showLabels, setShowLabels] = useState(false);
     const [fullScreenPhotoIndex, setFullScreenPhotoIndex] = useState<number | null>(null);
     const [showAddPhotoToast, setShowAddPhotoToast] = useState(false);
-    const addPhotoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const addPhotoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const { colors, isDark } = useTheme();
     const { t } = useTranslation();
@@ -137,7 +109,7 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
 
     const navBarStyle = useAnimatedStyle(() => {
         return {
-            height: withTiming(totalHeight, { duration: 200 }),
+            height: withTiming(totalHeight, { duration: 200, easing: Easing.out(Easing.cubic) }),
         };
     }, [totalHeight]);
 
@@ -148,6 +120,13 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
             api.getPlaceDetails(item.place_id).then(fullDetails => {
                 if (isMounted && fullDetails) {
                     setDetails(prev => ({ ...prev, ...fullDetails }));
+                    // Prefetch photo thumbnails ahead of time so the Photos tab renders instantly
+                    if (fullDetails.photos && fullDetails.photos.length > 0) {
+                        fullDetails.photos.slice(0, 12).forEach((photo: any) => {
+                            const url = api.getPhotoUrl(photo.photo_reference, 200);
+                            if (url) Image.prefetch(url);
+                        });
+                    }
                 }
             });
         }
@@ -163,19 +142,23 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
         setActivePage(index);
     };
 
-    const [headerWidths, setHeaderWidths] = useState<number[]>([0, 0, 0, 0]);
+    const headerWidthsRef = useRef<number[]>([0, 0, 0, 0]);
 
     // Header Animation - Triggered on page selection for smooth, jitter-free transitions
     const headerOffset = useSharedValue(0);
 
-    useEffect(() => {
+    const animateHeaderToPage = (page: number) => {
         let offset = 0;
         const gap = horizontalScale(20);
-        for (let i = 0; i < activePage; i++) {
-            offset += (headerWidths[i] || 0) + gap;
+        for (let i = 0; i < page; i++) {
+            offset += (headerWidthsRef.current[i] || 0) + gap;
         }
-        headerOffset.value = withTiming(-offset, { duration: 300, easing: Easing.out(Easing.cubic) });
-    }, [activePage, headerWidths]);
+        headerOffset.value = withTiming(-offset, { duration: 250, easing: Easing.out(Easing.cubic) });
+    };
+
+    useEffect(() => {
+        animateHeaderToPage(activePage);
+    }, [activePage]);
 
     const headerStyle = useAnimatedStyle(() => {
         return {
@@ -214,190 +197,178 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                             getFont={getFont}
                             t={t}
                             onLayout={(e) => {
-                                const w = e.nativeEvent.layout.width;
-                                setHeaderWidths(prev => {
-                                    const next = [...prev];
-                                    next[index] = w;
-                                    return next;
-                                });
+                                headerWidthsRef.current[index] = Math.round(e.nativeEvent.layout.width);
                             }}
                         />
                     ))}
                 </Animated.View>
             </View>
 
-            {/* Pager Content */}
+            {/* Pager Content - Preload all 4 pages ahead of time */}
             <PagerView
                 ref={pagerRef}
                 style={{ flex: 1, marginBottom: totalHeight }} // Add margin to avoid overlap with absolute AppBar
                 initialPage={0}
-                offscreenPageLimit={2}
+                offscreenPageLimit={4}
                 onPageSelected={handlePageSelection}
                 pageMargin={20}
             >
                 {/* PAGE 1: ABOUT */}
-                <View key="1" style={{ flex: 1 }}>
-                    <TurnstilePage isActive={activePage === 0}>
-                        <ScrollView contentContainerStyle={{ padding: 20 }}>
-                            <View style={{ gap: 20 }}>
-                                {/* Mini Map */}
-                                <View style={{ width: 140, height: 140, backgroundColor: colors.border }}>
-                                    <MapView
-                                        provider={PROVIDER_GOOGLE}
-                                        style={{ flex: 1 }}
-                                        customMapStyle={mapTheme === 'dark' ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
-                                        liteMode={true}
-                                        scrollEnabled={false}
-                                        zoomEnabled={false}
-                                        rotateEnabled={false}
-                                        pitchEnabled={false}
-                                        region={{
-                                            latitude: parseFloat(details.lat),
-                                            longitude: parseFloat(details.lon),
-                                            latitudeDelta: 0.005,
-                                            longitudeDelta: 0.005,
-                                        }}
-                                    >
-                                        <Marker coordinate={{ latitude: parseFloat(details.lat), longitude: parseFloat(details.lon) }} />
-                                    </MapView>
-                                </View>
+                <View key="1" style={styles.page}>
+                    <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === 'android'}>
+                        <View style={{ gap: 20 }}>
+                            {/* Mini Map */}
+                            <View style={{ width: 140, height: 140, backgroundColor: colors.border }}>
+                                <MapView
+                                    provider={PROVIDER_GOOGLE}
+                                    style={{ flex: 1 }}
+                                    customMapStyle={mapTheme === 'dark' ? DARK_MAP_STYLE : LIGHT_MAP_STYLE}
+                                    liteMode={true}
+                                    scrollEnabled={false}
+                                    zoomEnabled={false}
+                                    rotateEnabled={false}
+                                    pitchEnabled={false}
+                                    region={{
+                                        latitude: parseFloat(details.lat),
+                                        longitude: parseFloat(details.lon),
+                                        latitudeDelta: 0.005,
+                                        longitudeDelta: 0.005,
+                                    }}
+                                >
+                                    <Marker coordinate={{ latitude: parseFloat(details.lat), longitude: parseFloat(details.lon) }} />
+                                </MapView>
+                            </View>
 
-                                {/* Get Directions */}
-                                <TouchableOpacity onPress={onGetDirections}>
-                                    <Text style={[GlobalStyles.metroLG, { fontSize: 28, marginBottom: 4, fontFamily: getFont('OpenSans_400Regular'), color: colors.text }]}>{t('get directions')}</Text>
-                                    <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address?.split(',')[0]}</Text>
-                                    <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontSize: 16, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address}</Text>
-                                </TouchableOpacity>
+                            {/* Get Directions */}
+                            <TouchableOpacity onPress={onGetDirections}>
+                                <Text style={[GlobalStyles.metroLG, { fontSize: 28, marginBottom: 4, fontFamily: getFont('OpenSans_400Regular'), color: colors.text }]}>{t('get directions')}</Text>
+                                <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address?.split(',')[0]}</Text>
+                                <Text style={[GlobalStyles.metroMD, { color: colors.accent, fontSize: 16, fontFamily: getFont('OpenSans_400Regular') }]}>{details.address}</Text>
+                            </TouchableOpacity>
 
-                                {/* Rating */}
-                                {details.rating ? (
-                                    <View style={{ marginTop: 10 }}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                                            {[1, 2, 3, 4, 5].map((star) => {
-                                                let iconName: 'star' | 'star-half' | 'star-outline' = 'star-outline';
-                                                if (details.rating! >= star - 0.25) iconName = 'star';
-                                                else if (details.rating! >= star - 0.75) iconName = 'star-half';
-                                                return <Ionicons key={star} name={iconName} size={24} color="#FFD700" style={{ marginRight: 2 }} />;
-                                            })}
-                                            <Text style={[GlobalStyles.metroMD, { fontSize: 20, marginLeft: 8, color: '#FFD700', fontFamily: getFont('OpenSans_400Regular') }]}>
-                                                {details.rating.toFixed(1)}
-                                            </Text>
-                                        </View>
-                                        <Text style={[GlobalStyles.metroSM, { fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>
-                                            {details.user_ratings_total} {t('reviews')}
+                            {/* Rating */}
+                            {details.rating ? (
+                                <View style={{ marginTop: 10 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                                        {[1, 2, 3, 4, 5].map((star) => {
+                                            let iconName: 'star' | 'star-half' | 'star-outline' = 'star-outline';
+                                            if (details.rating! >= star - 0.25) iconName = 'star';
+                                            else if (details.rating! >= star - 0.75) iconName = 'star-half';
+                                            return <Ionicons key={star} name={iconName} size={24} color="#FFD700" style={{ marginRight: 2 }} />;
+                                        })}
+                                        <Text style={[GlobalStyles.metroMD, { fontSize: 20, marginLeft: 8, color: '#FFD700', fontFamily: getFont('OpenSans_400Regular') }]}>
+                                            {details.rating.toFixed(1)}
                                         </Text>
                                     </View>
-                                ) : null}
-
-                                {/* Description (Real) */}
-                                {details.description ? (
-                                    <Text style={[GlobalStyles.metroMD, { fontSize: 20, lineHeight: 28, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
-                                        {details.description}
+                                    <Text style={[GlobalStyles.metroSM, { fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>
+                                        {details.user_ratings_total} {t('reviews')}
                                     </Text>
-                                ) : null}
+                                </View>
+                            ) : null}
 
-                                {/* Phone */}
-                                {details.phone && (
-                                    <View style={{ marginTop: 10 }}>
-                                        <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('PHONE')}</Text>
-                                        <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(`tel:${details.phone}`)}>{details.phone}</Text>
-                                    </View>
-                                )}
+                            {/* Description (Real) */}
+                            {details.description ? (
+                                <Text style={[GlobalStyles.metroMD, { fontSize: 20, lineHeight: 28, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>
+                                    {details.description}
+                                </Text>
+                            ) : null}
 
-                                {/* Website */}
-                                {details.website && (
-                                    <View style={{ marginTop: 10 }}>
-                                        <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('WEBSITE')}</Text>
-                                        <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(details.website!)}>{t('visit website')}</Text>
-                                    </View>
-                                )}
+                            {/* Phone */}
+                            {details.phone && (
+                                <View style={{ marginTop: 10 }}>
+                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('PHONE')}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(`tel:${details.phone}`)}>{details.phone}</Text>
+                                </View>
+                            )}
 
-                            </View>
-                        </ScrollView>
-                    </TurnstilePage>
+                            {/* Website */}
+                            {details.website && (
+                                <View style={{ marginTop: 10 }}>
+                                    <Text style={[GlobalStyles.metroSM, GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('WEBSITE')}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { fontSize: 22, color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} onPress={() => Linking.openURL(details.website!)}>{t('visit website')}</Text>
+                                </View>
+                            )}
+
+                        </View>
+                    </ScrollView>
                 </View>
 
                 {/* PAGE 2: PHOTOS */}
-                <View key="2" style={{ flex: 1 }}>
-                    <TurnstilePage isActive={activePage === 1}>
-                        <ScrollView contentContainerStyle={{ padding: 20 }}>
+                <View key="2" style={styles.page}>
+                    <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === 'android'}>
 
-                            {/* "add a photo" button */}
-                            <View style={{ marginBottom: 20 }}>
-                                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleAddPhotoPress}>
-                                    <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.text, justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-                                        <Ionicons name="add" size={24} color={colors.text} />
-                                    </View>
-                                    <Text style={[GlobalStyles.metroMD, { fontSize: 24, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('add a photo')}</Text>
-                                </TouchableOpacity>
-                            </View>
+                        {/* "add a photo" button */}
+                        <View style={{ marginBottom: 20 }}>
+                            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleAddPhotoPress} activeOpacity={0.7}>
+                                <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: colors.text, justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
+                                    <Ionicons name="add" size={24} color={colors.text} />
+                                </View>
+                                <Text style={[GlobalStyles.metroMD, { fontSize: 24, color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{t('add a photo')}</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                            {/* 4-Column Grid */}
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                                {details.photos && details.photos.length > 0 ? (
-                                    details.photos.map((photo: any, index: number) => (
-                                        <TouchableOpacity key={index} style={{ width: '23.5%', aspectRatio: 1, backgroundColor: colors.border }} onPress={() => setFullScreenPhotoIndex(index)}>
-                                            <Image
-                                                source={{ uri: api.getPhotoUrl(photo.photo_reference, 200) }}
-                                                style={{ width: '100%', height: '100%' }}
-                                                resizeMode="cover"
-                                            />
-                                        </TouchableOpacity>
-                                    ))
-                                ) : (
-                                    <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No photos available.')}</Text>
-                                )}
-                            </View>
-                        </ScrollView>
+                        {/* 4-Column Grid */}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                            {details.photos && details.photos.length > 0 ? (
+                                details.photos.map((photo: any, index: number) => (
+                                    <TouchableOpacity key={index} style={{ width: '23.5%', aspectRatio: 1, backgroundColor: colors.border }} onPress={() => setFullScreenPhotoIndex(index)} activeOpacity={0.8}>
+                                        <Image
+                                            source={{ uri: api.getPhotoUrl(photo.photo_reference, 200) }}
+                                            style={{ width: '100%', height: '100%' }}
+                                            resizeMode="cover"
+                                            fadeDuration={0}
+                                        />
+                                    </TouchableOpacity>
+                                ))
+                            ) : (
+                                <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No photos available.')}</Text>
+                            )}
+                        </View>
+                    </ScrollView>
 
-                        {/* Centered Toast */}
-                        {showAddPhotoToast && (
-                            <Animated.View entering={FadeIn} exiting={FadeOut} style={{ position: 'absolute', alignSelf: 'center', top: '40%', backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 8, zIndex: 50 }}>
-                                <Text style={[GlobalStyles.metroSM, { color: colors.white, fontFamily: getFont('OpenSans_700Bold'), fontSize: 16 }]}>{t('not yet implemented')}</Text>
-                            </Animated.View>
-                        )}
-                    </TurnstilePage>
+                    {/* Centered Toast */}
+                    {showAddPhotoToast && (
+                        <Animated.View entering={FadeIn} exiting={FadeOut} style={{ position: 'absolute', alignSelf: 'center', top: '40%', backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 8, zIndex: 50 }}>
+                            <Text style={[GlobalStyles.metroSM, { color: colors.white, fontFamily: getFont('OpenSans_700Bold'), fontSize: 16 }]}>{t('not yet implemented')}</Text>
+                        </Animated.View>
+                    )}
                 </View>
 
                 {/* PAGE 3: REVIEWS */}
-                <View key="3" style={{ flex: 1 }}>
-                    <TurnstilePage isActive={activePage === 2}>
-                        <ScrollView contentContainerStyle={{ padding: 20 }}>
-                            {details.reviews && details.reviews.length > 0 ? (
-                                details.reviews.map((review: any, index: number) => (
-                                    <View key={index} style={{ marginBottom: 32 }}>
-                                        <Text style={[GlobalStyles.metroMD, { fontFamily: getFont('OpenSans_700Bold'), fontSize: 20, marginBottom: 4, color: colors.text }]}>{review.author_name}</Text>
-                                        <Text style={[GlobalStyles.metroMD, { color: colors.accent, marginBottom: 8, fontFamily: getFont('OpenSans_400Regular') }]}>{review.rating}/5 {t('rating')}</Text>
-                                        <Text style={[GlobalStyles.metroSM, { opacity: 0.9, lineHeight: 22, fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{review.text}</Text>
-                                    </View>
-                                ))
-                            ) : (
-                                <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No reviews available.')}</Text>
-                            )}
-                        </ScrollView>
-                    </TurnstilePage>
+                <View key="3" style={styles.page}>
+                    <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === 'android'}>
+                        {details.reviews && details.reviews.length > 0 ? (
+                            details.reviews.map((review: any, index: number) => (
+                                <View key={index} style={{ marginBottom: 32 }}>
+                                    <Text style={[GlobalStyles.metroMD, { fontFamily: getFont('OpenSans_700Bold'), fontSize: 20, marginBottom: 4, color: colors.text }]}>{review.author_name}</Text>
+                                    <Text style={[GlobalStyles.metroMD, { color: colors.accent, marginBottom: 8, fontFamily: getFont('OpenSans_400Regular') }]}>{review.rating}/5 {t('rating')}</Text>
+                                    <Text style={[GlobalStyles.metroSM, { opacity: 0.9, lineHeight: 22, fontSize: 16, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{review.text}</Text>
+                                </View>
+                            ))
+                        ) : (
+                            <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No reviews available.')}</Text>
+                        )}
+                    </ScrollView>
                 </View>
 
                 {/* PAGE 4: HOURS */}
-                <View key="4" style={{ flex: 1 }}>
-                    <TurnstilePage isActive={activePage === 3}>
-                        <ScrollView contentContainerStyle={{ padding: 20 }}>
-                            {details.opening_hours && details.opening_hours.length > 0 ? (
-                                details.opening_hours.map((hourStr: string, index: number) => {
-                                    const [day, ...timeParts] = hourStr.split(': ');
-                                    const time = timeParts.join(': ');
-                                    return (
-                                        <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 }}>
-                                            <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.text, fontFamily: getFont('OpenSans_700Bold') }]}>{day}</Text>
-                                            <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{time}</Text>
-                                        </View>
-                                    );
-                                })
-                            ) : (
-                                <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No hours available.')}</Text>
-                            )}
-                        </ScrollView>
-                    </TurnstilePage>
+                <View key="4" style={styles.page}>
+                    <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === 'android'}>
+                        {details.opening_hours && details.opening_hours.length > 0 ? (
+                            details.opening_hours.map((hourStr: string, index: number) => {
+                                const [day, ...timeParts] = hourStr.split(': ');
+                                const time = timeParts.join(': ');
+                                return (
+                                    <View key={index} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 }}>
+                                        <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.text, fontFamily: getFont('OpenSans_700Bold') }]}>{day}</Text>
+                                        <Text style={[GlobalStyles.metroMD, { fontSize: 18, color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{time}</Text>
+                                    </View>
+                                );
+                            })
+                        ) : (
+                            <Text style={[GlobalStyles.dimText, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('No hours available.')}</Text>
+                        )}
+                    </ScrollView>
                 </View>
             </PagerView>
 
@@ -499,7 +470,7 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
 const METRO_EASING = Easing.bezier(0.1, 0.9, 0.2, 1);
 
 function PivotAppBarButton({ children, onPress, label, showLabels, colors, getFont }: { children: React.ReactNode; onPress: () => void; label: string, showLabels: boolean, colors: any, getFont: (f: string) => string }) {
-    const [isPressed, setIsPressed] = useState(false);
+    const isPressedVal = useSharedValue(0);
     const scale = useSharedValue(1);
     const rotateXVal = useSharedValue(0);
     const rotateYVal = useSharedValue(0);
@@ -515,7 +486,12 @@ function PivotAppBarButton({ children, onPress, label, showLabels, colors, getFo
                 { scale: scale.value },
                 { rotateX: `${rotateXVal.value}deg` },
                 { rotateY: `${rotateYVal.value}deg` }
-            ]
+            ],
+            backgroundColor: interpolateColor(
+                isPressedVal.value,
+                [0, 1],
+                ['transparent', colors.accent]
+            )
         };
     });
 
@@ -531,22 +507,27 @@ function PivotAppBarButton({ children, onPress, label, showLabels, colors, getFo
     };
 
     const handlePressIn = (e: any) => {
-        setIsPressed(true);
+        isPressedVal.value = withTiming(1, { duration: 60, easing: METRO_EASING });
         updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY, 100);
         scale.value = withTiming(0.92, { duration: 100, easing: METRO_EASING });
-        translateYVal.value = withSpring(-2, { mass: 1, damping: 12, stiffness: 200 });
+        translateYVal.value = withTiming(-2, { duration: 100, easing: METRO_EASING });
     };
 
     const handleTouchMove = (e: any) => {
         updateTilt(e.nativeEvent.locationX, e.nativeEvent.locationY, 50);
     };
 
-    const handlePressOut = () => {
-        setIsPressed(false);
+    const handlePressReset = () => {
+        isPressedVal.value = withTiming(0, { duration: 150, easing: METRO_EASING });
         rotateXVal.value = withTiming(0, { duration: 150, easing: METRO_EASING });
         rotateYVal.value = withTiming(0, { duration: 150, easing: METRO_EASING });
         scale.value = withTiming(1, { duration: 150, easing: METRO_EASING });
-        translateYVal.value = withSpring(0, { mass: 1, damping: 12, stiffness: 200 });
+        translateYVal.value = withTiming(0, { duration: 150, easing: METRO_EASING });
+    };
+
+    const handlePress = () => {
+        handlePressReset();
+        onPress();
     };
 
     const handleLayout = (e: any) => {
@@ -556,9 +537,10 @@ function PivotAppBarButton({ children, onPress, label, showLabels, colors, getFo
 
     return (
         <Pressable 
-            onPress={onPress} 
+            onPress={handlePress} 
             onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
+            onPressOut={handlePressReset}
+            onTouchCancel={handlePressReset}
             onTouchMove={handleTouchMove}
             style={styles.appBarButton}
         >
@@ -569,7 +551,6 @@ function PivotAppBarButton({ children, onPress, label, showLabels, colors, getFo
                     animatedStyle,
                     { 
                         borderColor: colors.text,
-                        backgroundColor: isPressed ? colors.accent : 'transparent'
                     }
                 ]}
             >

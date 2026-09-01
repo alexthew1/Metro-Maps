@@ -7,12 +7,9 @@ export default {
         version: "1.6.0",
         orientation: "portrait",
         icon: "./assets/icon.png",
-        userInterfaceStyle: "light",
         newArchEnabled: true,
         splash: {
-            image: "./assets/splash-icon.png",
-            resizeMode: "contain",
-            backgroundColor: "#23559F"
+            backgroundColor: "#000000"
         },
         plugins: [
             "expo-router",
@@ -27,13 +24,9 @@ export default {
             [
                 "expo-splash-screen",
                 {
-                    "backgroundColor": "#23559F",
-                    "image": "./assets/splash-icon.png",
-                    "dark": {
-                        "image": "./assets/splash-icon-dark.png",
-                        "backgroundColor": "#23559F"
-                    },
-                    "imageWidth": 680
+                    "backgroundColor": "#000000",
+                    "image": "./assets/splash-black.png",
+                    "imageWidth": 1
                 }
             ],
             "expo-build-properties"

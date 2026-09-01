@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming, Easing, useSharedValue, interpolateColor, SharedValue } from 'react-native-reanimated';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, Dimensions, Pressable } from 'react-native';
+import Animated, { useAnimatedStyle, withTiming, Easing, useSharedValue, withSpring, withSequence, runOnJS } from 'react-native-reanimated';
 import PagerView from 'react-native-pager-view';
 import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { BottomSheet } from './BottomSheet';
@@ -15,17 +15,184 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { useCustomFont } from '../contexts/FontContext';
 
+const METRO_EASING = Easing.bezier(0.1, 0.9, 0.2, 1);
+
+// Animated Favorite Item Row with Star and Edit Button Animations
+function FavoriteItemRow({
+    item,
+    isEditing,
+    editName,
+    setEditName,
+    onSaveEdit,
+    onStartEdit,
+    onDelete,
+    onSelect,
+    colors,
+    getFont,
+    t
+}: {
+    item: Favorite;
+    isEditing: boolean;
+    editName: string;
+    setEditName: (name: string) => void;
+    onSaveEdit: (id: string) => void;
+    onStartEdit: (item: Favorite) => void;
+    onDelete: (id: string) => void;
+    onSelect: (item: SearchResult) => void;
+    colors: any;
+    getFont: (font: string) => string;
+    t: any;
+}) {
+    // Edit Button Animation
+    const editScale = useSharedValue(1);
+    const editRotate = useSharedValue(0);
+
+    const editAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [
+            { scale: editScale.value },
+            { rotate: `${editRotate.value}deg` }
+        ]
+    }));
+
+    const handleEditPressIn = () => {
+        editScale.value = withTiming(0.85, { duration: 80, easing: METRO_EASING });
+        editRotate.value = withTiming(-10, { duration: 80, easing: METRO_EASING });
+    };
+
+    const handleEditPressOut = () => {
+        editScale.value = withTiming(1, { duration: 120, easing: METRO_EASING });
+        editRotate.value = withTiming(0, { duration: 120, easing: METRO_EASING });
+    };
+
+    const handleEditPress = (e: any) => {
+        e.stopPropagation();
+        editScale.value = withTiming(1, { duration: 100, easing: METRO_EASING });
+        editRotate.value = withTiming(0, { duration: 100, easing: METRO_EASING });
+        onStartEdit(item);
+    };
+
+    // Star Button Animation
+    const starScale = useSharedValue(1);
+    const starRotate = useSharedValue(0);
+
+    const starAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [
+            { scale: starScale.value },
+            { rotate: `${starRotate.value}deg` }
+        ]
+    }));
+
+    const handleStarPressIn = () => {
+        starScale.value = withTiming(0.8, { duration: 80, easing: METRO_EASING });
+        starRotate.value = withTiming(-15, { duration: 80, easing: METRO_EASING });
+    };
+
+    const handleStarPressOut = () => {
+        starScale.value = withTiming(1, { duration: 120, easing: METRO_EASING });
+        starRotate.value = withTiming(0, { duration: 120, easing: METRO_EASING });
+    };
+
+    const handleStarPress = () => {
+        onDelete(item.place_id);
+    };
+
+    if (isEditing) {
+        return (
+            <View style={[styles.itemContainer, { paddingVertical: verticalScale(10) }]}>
+                <View style={styles.editContainer}>
+                    <TextInput
+                        style={[
+                            styles.metroInput,
+                            {
+                                color: colors.text,
+                                borderColor: colors.text,
+                                backgroundColor: colors.background,
+                                fontFamily: getFont('OpenSans_400Regular')
+                            }
+                        ]}
+                        value={editName}
+                        onChangeText={setEditName}
+                        placeholder={t("Enter name")}
+                        placeholderTextColor={colors.textDim}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={() => onSaveEdit(item.place_id)}
+                        blurOnSubmit={true}
+                    />
+                    <Text style={{ color: colors.textDim, fontSize: 12, marginTop: 5, fontFamily: getFont('OpenSans_400Regular') }}>
+                        {t('press enter to save')}
+                    </Text>
+                </View>
+            </View>
+        );
+    }
+
+    return (
+        <View style={styles.itemContainer}>
+            {/* Left selectable area */}
+            <TouchableOpacity
+                style={{ flex: 1, marginRight: horizontalScale(10) }}
+                onPress={() => onSelect(item)}
+                activeOpacity={0.7}
+                onLongPress={() => onStartEdit(item)}
+            >
+                <Text style={[styles.itemTitle, { color: colors.text, fontFamily: getFont('OpenSans_600SemiBold') }]} numberOfLines={1}>
+                    {item.alias || item.display_name}
+                </Text>
+                <Text style={[styles.itemSubtitle, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={1}>
+                    {item.address || item.vicinity}
+                </Text>
+                {item.alias && (
+                    <Text style={[styles.itemSubtitle, { fontSize: 12, opacity: 0.7, color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={1}>
+                        {item.display_name}
+                    </Text>
+                )}
+            </TouchableOpacity>
+
+            {/* Right Side Icons: Animated Edit Button + Animated Star Button */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: horizontalScale(12) }}>
+                <TouchableOpacity
+                    onPress={() => onStartEdit(item)}
+                    onPressIn={handleEditPressIn}
+                    onPressOut={handleEditPressOut}
+                    hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                    style={{ padding: 6 }}
+                    activeOpacity={0.7}
+                >
+                    <Animated.View style={editAnimatedStyle}>
+                        <MaterialCommunityIcons name="pencil" size={22} color={colors.textDim} />
+                    </Animated.View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={handleStarPress}
+                    onPressIn={handleStarPressIn}
+                    onPressOut={handleStarPressOut}
+                    hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+                    style={{ padding: 6 }}
+                    activeOpacity={0.7}
+                >
+                    <Animated.View style={starAnimatedStyle}>
+                        <MaterialCommunityIcons name="star" size={24} color={colors.accent} />
+                    </Animated.View>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+}
+
 // Simple Pivot Item with discrete color (jitter-free)
-function AnimatedFavPivotItem({ isActive, title, onPress, colors, getFont, t }: {
+function AnimatedFavPivotItem({ isActive, title, onPress, colors, getFont, t, onLayout }: {
     isActive: boolean;
     title: string;
     onPress: () => void;
     colors: any;
     getFont: (font: string) => string;
     t: any;
+    onLayout?: (e: any) => void;
 }) {
     return (
-        <TouchableOpacity onPress={onPress}>
+        <TouchableOpacity onPress={onPress} onLayout={onLayout} activeOpacity={0.7}>
             <Text style={[styles.pivotTitle, { color: isActive ? colors.text : colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>
                 {t(title)}
             </Text>
@@ -33,16 +200,16 @@ function AnimatedFavPivotItem({ isActive, title, onPress, colors, getFont, t }: 
     );
 }
 
-
 interface FavoritesSheetProps {
     state: 'hidden' | 'peek' | 'expanded';
     onStateChange: (state: 'hidden' | 'peek' | 'expanded') => void;
     onSelect: (item: SearchResult) => void;
+    onFavoritesChange?: () => void;
 }
 
 type Tab = 'favorites' | 'recent';
 
-export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesSheetProps) {
+export function FavoritesSheet({ state, onStateChange, onSelect, onFavoritesChange }: FavoritesSheetProps) {
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState<Tab>('favorites');
     const pagerRef = useRef<PagerView>(null);
@@ -67,12 +234,6 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
 
-    useEffect(() => {
-        if (state !== 'hidden') {
-            loadData();
-        }
-    }, [state, activeTab]);
-
     const loadData = async () => {
         const favs = await FavoritesService.getFavorites();
         setFavorites(favs);
@@ -80,88 +241,48 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
         setRecents(recs);
     };
 
+    useEffect(() => {
+        if (state !== 'hidden') {
+            loadData();
+        }
+    }, [state]);
+
     const handleSaveEdit = async (id: string) => {
         const item = favorites.find(f => f.place_id === id);
         if (item) {
             await FavoritesService.addFavorite(item, editName);
             setEditingId(null);
-            loadData();
+            await loadData();
+            onFavoritesChange?.();
         }
+    };
+
+    const handleStartEdit = (item: Favorite) => {
+        setEditName(item.alias || item.display_name);
+        setEditingId(item.place_id);
     };
 
     const handleDelete = async (id: string) => {
         await FavoritesService.removeFavorite(id);
-        loadData();
+        await loadData();
+        onFavoritesChange?.();
     };
 
     const renderFavoriteItem = ({ item }: { item: Favorite }) => {
-        const isEditing = editingId === item.place_id;
-
-        if (isEditing) {
-            return (
-                <View style={[styles.itemContainer, { paddingVertical: 10 }]}>
-                    <View style={styles.editContainer}>
-                        <TextInput
-                            style={[styles.metroInput, { color: colors.text, borderColor: colors.text, backgroundColor: colors.background, fontFamily: getFont('OpenSans_400Regular') }]}
-                            value={editName}
-                            onChangeText={setEditName}
-                            placeholder={t("Enter name")}
-                            placeholderTextColor={colors.textDim}
-                            autoFocus
-                            returnKeyType="done"
-                            onSubmitEditing={() => handleSaveEdit(item.place_id)}
-                            blurOnSubmit={true}
-                        />
-                        <Text style={{ color: colors.textDim, fontSize: 12, marginTop: 5, fontFamily: getFont('OpenSans_400Regular') }}>{t('press enter to save')}</Text>
-                    </View>
-                </View>
-            );
-        }
-
         return (
-            <TouchableOpacity
-                style={styles.itemContainer}
-                onPress={() => onSelect(item)}
-                activeOpacity={0.7}
-                delayPressIn={100}
-                onLongPress={() => {
-                    setEditName(item.alias || item.display_name);
-                    setEditingId(item.place_id);
-                }}
-            >
-                <View style={{ flex: 1, marginRight: 10 }}>
-                    <Text style={[styles.itemTitle, { color: colors.text, fontFamily: getFont('OpenSans_600SemiBold') }]} numberOfLines={1}>
-                        {item.alias || item.display_name}
-                    </Text>
-                    <Text style={[styles.itemSubtitle, { color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={1}>
-                        {item.address || item.vicinity}
-                    </Text>
-                    {item.alias && (
-                        <Text style={[styles.itemSubtitle, { fontSize: 12, opacity: 0.7, color: colors.accent, fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={1}>
-                            {item.display_name}
-                        </Text>
-                    )}
-                </View>
-
-                {/* Right Side Icons: Edit Button + Static Star */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
-                    <TouchableOpacity onPress={(e) => {
-                        e.stopPropagation();
-                        setEditName(item.alias || item.display_name);
-                        setEditingId(item.place_id);
-                    }}
-                        style={{ padding: 5 }}>
-                        <MaterialCommunityIcons name="pencil" size={22} color={colors.textDim} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={(e) => {
-                        e.stopPropagation();
-                        handleDelete(item.place_id);
-                    }}>
-                        <MaterialCommunityIcons name="star" size={24} color={colors.accent} />
-                    </TouchableOpacity>
-                </View>
-            </TouchableOpacity>
+            <FavoriteItemRow
+                item={item}
+                isEditing={editingId === item.place_id}
+                editName={editName}
+                setEditName={setEditName}
+                onSaveEdit={handleSaveEdit}
+                onStartEdit={handleStartEdit}
+                onDelete={handleDelete}
+                onSelect={onSelect}
+                colors={colors}
+                getFont={getFont}
+                t={t}
+            />
         );
     };
 
@@ -171,7 +292,6 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                 style={styles.itemContainer}
                 onPress={() => onSelect(item)}
                 activeOpacity={0.7}
-                delayPressIn={100}
             >
                 <View style={{ flex: 1, marginRight: 10 }}>
                     <Text style={[styles.itemTitle, { color: colors.text, fontFamily: getFont('OpenSans_600SemiBold') }]} numberOfLines={1}>
@@ -187,15 +307,22 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
         );
     };
 
-    // Animation: pivotOffset for translateX with timing (discrete color changes, no scroll-based interpolation)
+    // Header dynamic layout measurement and smooth animation
+    const headerWidthsRef = useRef<number[]>([0, 0]);
     const activeTabIndex = activeTab === 'favorites' ? 0 : 1;
     const pivotOffset = useSharedValue(0);
 
-    // Pivot item width approx 180 (depends on font size). Let's use scale.
-    // "favorites" is long, "recent" is shorter.
-    // We should probably rely on onLayout, but for now scaling the translation is better than fixed.
+    const animatePivotToTab = (tabIndex: number) => {
+        let offset = 0;
+        const gap = horizontalScale(20);
+        for (let i = 0; i < tabIndex; i++) {
+            offset += (headerWidthsRef.current[i] || 0) + gap;
+        }
+        pivotOffset.value = withTiming(-offset, { duration: 250, easing: Easing.out(Easing.cubic) });
+    };
+
     useEffect(() => {
-        pivotOffset.value = withTiming(-activeTabIndex * horizontalScale(180), { duration: 350, easing: Easing.out(Easing.cubic) });
+        animatePivotToTab(activeTabIndex);
     }, [activeTabIndex]);
 
     const pivotAnimatedStyle = useAnimatedStyle(() => {
@@ -214,7 +341,7 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
         setActiveTab(page === 0 ? 'favorites' : 'recent');
     };
 
-    const Header = useMemo(() => (
+    const Header = (
         <View style={[styles.headerContainer, { overflow: 'hidden' }]}>
             <Text style={[styles.overline, { marginBottom: verticalScale(8), marginHorizontal: horizontalScale(20), color: colors.text, fontFamily: getFont('OpenSans_700Bold') }]}>{t('MY PLACES')}</Text>
             <View style={{ height: verticalScale(70), marginBottom: 0, marginLeft: horizontalScale(20) }}>
@@ -226,6 +353,9 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                         colors={colors}
                         getFont={getFont}
                         t={t}
+                        onLayout={(e) => {
+                            headerWidthsRef.current[0] = e.nativeEvent.layout.width;
+                        }}
                     />
                     <AnimatedFavPivotItem
                         isActive={activeTab === 'recent'}
@@ -234,11 +364,14 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                         colors={colors}
                         getFont={getFont}
                         t={t}
+                        onLayout={(e) => {
+                            headerWidthsRef.current[1] = e.nativeEvent.layout.width;
+                        }}
                     />
                 </Animated.View>
             </View>
         </View>
-    ), [activeTab, pivotAnimatedStyle, colors, customFonts, t]);
+    );
 
     return (
         <BottomSheet visible={state !== 'hidden'} state={state} onStateChange={onStateChange} header={Header} peekHeight={155}>
@@ -246,7 +379,7 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                 ref={pagerRef}
                 style={{ flex: 1, paddingBottom: insets.bottom + 20 }}
                 initialPage={0}
-                offscreenPageLimit={1}
+                offscreenPageLimit={2}
                 onPageSelected={handlePageSelected}
             >
                 <View key="1" style={{ flex: 1 }}>
@@ -255,6 +388,10 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                         renderItem={renderFavoriteItem}
                         keyExtractor={item => item.place_id}
                         contentContainerStyle={styles.listContent}
+                        initialNumToRender={8}
+                        maxToRenderPerBatch={10}
+                        windowSize={5}
+                        removeClippedSubviews={Platform.OS === 'android'}
                         ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.border }]} />}
                         ListEmptyComponent={() => (
                             <View style={styles.emptyState}>
@@ -271,6 +408,10 @@ export function FavoritesSheet({ state, onStateChange, onSelect }: FavoritesShee
                         renderItem={renderRecentItem}
                         keyExtractor={item => item.place_id}
                         contentContainerStyle={styles.listContent}
+                        initialNumToRender={8}
+                        maxToRenderPerBatch={10}
+                        windowSize={5}
+                        removeClippedSubviews={Platform.OS === 'android'}
                         ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.border }]} />}
                         ListEmptyComponent={() => (
                             <View style={styles.emptyState}>

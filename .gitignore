@@ -2,6 +2,7 @@ node_modules
 .idea
 .env
 .expo
+expo-env.d.ts
 .DS_Store
 auto_commit.sh
 README.md
