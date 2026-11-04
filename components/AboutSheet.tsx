@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import React, { useEffect } from 'react';
+import Constants from 'expo-constants';
 import Animated, { useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -63,7 +64,7 @@ export function AboutSheet({ visible, onClose }: AboutSheetProps) {
             <View style={styles.content}>
                 <View style={styles.infoRow}>
                     <Text style={[styles.label, { color: colors.textDim, fontFamily: getFont('OpenSans_400Regular') }]}>{t('Version')}</Text>
-                    <Text style={[styles.value, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>1.6</Text>
+                    <Text style={[styles.value, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{Constants.expoConfig?.version ?? '—'}</Text>
                 </View>
 
                 <View style={styles.infoRow}>
