@@ -186,6 +186,31 @@ export const api = {
         }
     },
 
+    // One nearby page supplies the ordinary POI layer without fetching every search category.
+    async getNearbyPlaces(latitude: number, longitude: number, radius: number, signal?: AbortSignal): Promise<SearchResult[] | null> {
+        try {
+            const url = GOOGLE_BASE_URL + '/nearbysearch/json?location=' + latitude + ',' + longitude
+                + '&radius=' + Math.round(radius) + '&key=' + GOOGLE_API_KEY;
+            const response = await fetch(url, { signal });
+            if (!response.ok) return null;
+            const data = await response.json();
+            if (data.status === 'ZERO_RESULTS') return [];
+            if (data.status !== 'OK') return null;
+            return (data.results || []).filter((place: any) =>
+                place.place_id && place.name && Number.isFinite(place.geometry?.location?.lat)
+                && Number.isFinite(place.geometry?.location?.lng)
+                && !place.types?.some((type: string) => ['political', 'locality', 'route'].includes(type))
+            ).map((place: any) => ({
+                place_id: place.place_id, display_name: place.name,
+                lat: String(place.geometry.location.lat), lon: String(place.geometry.location.lng),
+                type: place.types?.[0] || 'place', types: place.types,
+                address: place.vicinity, vicinity: place.vicinity,
+            }));
+        } catch {
+            return null;
+        }
+    },
+
     // Category Search (Mapped to Text Search for better relevance)
     // Default radius: 50 miles = ~80 km
     async searchByCategory(category: string, lat: number, lon: number, radiusKm: number = 80): Promise<SearchResult[]> {
@@ -248,7 +273,12 @@ export const api = {
     },
 
     // Routing via Google Routes API
-    async getRoutes(start: { lat: number; lon: number }, end: { lat: number; lon: number }, mode: 'driving' | 'walking' | 'transit' = 'driving'): Promise<RouteResult[] | null> {
+    async getRoutes(start: { lat: number; lon: number }, end: { lat: number; lon: number }, mode: 'driving' | 'walking' | 'transit' = 'driving', signal?: AbortSignal): Promise<RouteResult[] | null> {
+        const controller = new AbortController();
+        const abort = () => controller.abort();
+        if (signal?.aborted) abort();
+        else signal?.addEventListener('abort', abort);
+        const timeout = setTimeout(abort, 20000);
         try {
             console.log(`Fetching Google Routes API (${mode})...`);
             
@@ -270,6 +300,7 @@ export const api = {
 
             const response = await fetch(url, {
                 method: 'POST',
+                signal: controller.signal,
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Goog-Api-Key': GOOGLE_API_KEY,
@@ -437,6 +468,9 @@ export const api = {
         } catch (error) {
             console.error('Routing failed:', error);
             return null;
+        } finally {
+            clearTimeout(timeout);
+            signal?.removeEventListener('abort', abort);
         }
     },
 

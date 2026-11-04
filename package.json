@@ -8,6 +8,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "test": "node --test tests/*.test.cjs",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web"

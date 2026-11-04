@@ -35,6 +35,7 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
     const [results, setResults] = useState<SearchResult[]>([]);
     const [recents, setRecents] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
+    const [searchIntent, setSearchIntent] = useState<{ category?: string; submit?: boolean } | null>(null);
 
     const { colors } = useTheme();
     const { t } = useTranslation();
@@ -126,57 +127,45 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
         return await api.searchPlaces(text, searchLocation, 80467, applyFilter);
     };
 
-    // Debounce Search Effect
+    // One owner for search results: obsolete requests cannot update the UI or reopen results.
     useEffect(() => {
-        const delayDebounceFn = setTimeout(async () => {
-            if (query.length > 2) {
-                setLoading(true);
-                const data = await fetchSearchResults(query);
-                setResults(data);
-                setLoading(false);
-            } else {
-                setResults([]);
-            }
-        }, 500);
-
-        return () => clearTimeout(delayDebounceFn);
-    }, [query]);
-
-    // Handle Enter Key Press
-    const handleSearchSubmit = async () => {
-        Keyboard.dismiss();
-        if (query.length > 2) {
-            setLoading(true);
-            const data = await fetchSearchResults(query);
-            setResults(data);
+        let cancelled = false;
+        if (!active || query.trim().length <= 2) {
+            setResults([]);
             setLoading(false);
-            if (onCategorySearch) {
-                onCategorySearch(data);
-            }
+            return;
         }
+        setResults([]);
+        setLoading(true);
+        const timeout = setTimeout(async () => {
+            try {
+                const category = searchIntent?.category;
+                const data = category && userLocation
+                    ? await api.searchByCategory(category, userLocation.latitude, userLocation.longitude, 24)
+                    : await fetchSearchResults(query.trim());
+                if (cancelled) return;
+                setResults(data);
+                if (searchIntent) onCategorySearch?.(data);
+            } catch (error) {
+                if (!cancelled) console.warn('Search failed', error);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }, searchIntent ? 0 : 500);
+        return () => {
+            cancelled = true;
+            clearTimeout(timeout);
+        };
+    }, [query, active, searchIntent]);
+
+    const handleSearchSubmit = () => {
+        Keyboard.dismiss();
+        setSearchIntent({ submit: true });
     };
 
-    const handleCategoryPress = async (cat: string) => {
-        setQuery(cat); // Visual feedback
-        setLoading(true);
-
-        // Use Overpass API for proper category search with metadata
-        // 48km radius = ~30 miles
-        let data: SearchResult[] = [];
-        if (userLocation) {
-            data = await api.searchByCategory(cat, userLocation.latitude, userLocation.longitude, 24);
-        } else {
-            // Fallback to Nominatim if no user location
-            data = await api.searchPlaces(cat);
-        }
-
-        // Show all results in the radius
-        setResults(data);
-        setLoading(false);
-
-        if (onCategorySearch) {
-            onCategorySearch(data);
-        }
+    const handleCategoryPress = (cat: string) => {
+        setQuery(cat);
+        setSearchIntent({ category: cat });
     };
 
     // SearchCurtain uses conditional rendering with layout animations for smooth appearance
@@ -197,7 +186,7 @@ export function SearchCurtain({ active, onClose, onResultSelected, region, onCat
                     placeholder={t("Search...")}
                     placeholderTextColor={colors.textDim}
                     value={query}
-                    onChangeText={setQuery}
+                    onChangeText={text => { setSearchIntent(null); setQuery(text); }}
                     autoFocus={false}
                     returnKeyType="search"
                     onSubmitEditing={handleSearchSubmit}

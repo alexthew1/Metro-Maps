@@ -1,0 +1,197 @@
+{
+  "variant": "dark",
+  "backgroundColor": "#0f0f0f",
+  "styles": [
+    {
+      "id": "natural",
+      "geometry": {
+        "fillColor": "#0f0f0f"
+      },
+      "label": {
+        "textFillColor": "#cccccc",
+        "textStrokeColor": "#0f0f0f"
+      }
+    },
+    {
+      "id": "infrastructure",
+      "geometry": {
+        "fillColor": "#0f0f0f",
+        "strokeColor": "#0f0f0f"
+      },
+      "label": {
+        "textFillColor": "#cccccc",
+        "textStrokeColor": "#0f0f0f"
+      }
+    },
+    {
+      "id": "pointOfInterest",
+      "geometry": {
+        "fillColor": "#272727"
+      },
+      "label": {
+        "textFillColor": "#cccccc",
+        "textStrokeColor": "#0f0f0f",
+        "pinFillColor": "#0085d0",
+        "visible": true,
+        "pinOutlineColor": "#ffffff",
+        "pinGlyphColor": "#ffffff"
+      }
+    },
+    {
+      "id": "political",
+      "geometry": {
+        "fillColor": "#0f0f0f"
+      },
+      "label": {
+        "textFillColor": "#cccccc",
+        "textStrokeColor": "#0f0f0f"
+      }
+    },
+    {
+      "id": "political.border",
+      "geometry": {
+        "color": "#333333"
+      }
+    },
+    {
+      "id": "political.landParcel",
+      "geometry": {
+        "strokeColor": "#333333",
+        "strokeWidth": 1
+      }
+    },
+    {
+      "id": "political.city",
+      "label": {
+        "textFillColor": "#e0e0e0"
+      }
+    },
+    {
+      "id": "natural.land",
+      "geometry": {
+        "fillColor": "#0f0f0f"
+      }
+    },
+    {
+      "id": "infrastructure.urbanArea",
+      "geometry": {
+        "fillColor": "#0f0f0f"
+      }
+    },
+    {
+      "id": "infrastructure.building",
+      "geometry": {
+        "fillColor": "#272727",
+        "visible": true,
+        "strokeColor": "#3d3d3d",
+        "strokeWidth": 1
+      }
+    },
+    {
+      "id": "infrastructure.building.commercial",
+      "geometry": {
+        "fillColor": "#272727"
+      }
+    },
+    {
+      "id": "pointOfInterest.service",
+      "geometry": {
+        "fillColor": "#272727"
+      }
+    },
+    {
+      "id": "pointOfInterest.emergency.hospital",
+      "geometry": {
+        "fillColor": "#2d2325"
+      }
+    },
+    {
+      "id": "pointOfInterest.recreation.park",
+      "geometry": {
+        "fillColor": "#151c15"
+      },
+      "label": {
+        "textFillColor": "#7da67d"
+      }
+    },
+    {
+      "id": "infrastructure.roadNetwork",
+      "geometry": {
+        "fillColor": "#1e1e1e",
+        "strokeColor": "#383838",
+        "strokeWidth": 1
+      },
+      "label": {
+        "textFillColor": "#cccccc"
+      }
+    },
+    {
+      "id": "infrastructure.roadNetwork.road.highway",
+      "geometry": {
+        "fillColor": "#262626",
+        "strokeColor": "#454545",
+        "strokeWidth": 1
+      }
+    },
+    {
+      "id": "infrastructure.roadNetwork.road.arterial",
+      "geometry": {
+        "fillColor": "#222222",
+        "strokeColor": "#3d3d3d",
+        "strokeWidth": 1
+      }
+    },
+    {
+      "id": "infrastructure.roadNetwork.road.local",
+      "geometry": {
+        "fillColor": "#1a1a1a",
+        "strokeColor": "#333333",
+        "strokeWidth": 1
+      }
+    },
+    {
+      "id": "infrastructure.roadNetwork.road.noOutlet",
+      "geometry": {
+        "fillColor": "#1a1a1a",
+        "strokeColor": "#333333",
+        "strokeWidth": 1
+      }
+    },
+    {
+      "id": "infrastructure.transitStation",
+      "label": {
+        "pinFillColor": "#0085d0",
+        "visible": true
+      }
+    },
+    {
+      "id": "pointOfInterest.transit",
+      "label": {
+        "pinFillColor": "#0085d0",
+        "visible": true
+      }
+    },
+    {
+      "id": "infrastructure.railwayTrack",
+      "geometry": {
+        "fillColor": "#2a2a2a",
+        "strokeColor": "#2a2a2a"
+      }
+    },
+    {
+      "id": "natural.water",
+      "geometry": {
+        "fillColor": "#080808"
+      },
+      "label": {
+        "textFillColor": "#4f6a7d"
+      }
+    },
+    {
+      "id": "natural.base",
+      "geometry": {
+        "fillColor": "#0f0f0f"
+      }
+    }
+  ]
+}

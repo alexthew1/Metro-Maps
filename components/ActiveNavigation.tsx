@@ -1,4 +1,5 @@
 import React from 'react';
+import { distanceToRoute } from '../utils/navigation';
 import { View, Text, StyleSheet, TouchableOpacity, Image as RNImage, Platform, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
@@ -18,13 +19,13 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface ActiveNavigationProps {
     route: RouteResult | null;
-    userLocation: { latitude: number; longitude: number; heading?: number | null; speed?: number | null } | null;
+    userLocation: { latitude: number; longitude: number; heading?: number | null; speed?: number | null; accuracy?: number | null } | null;
     onStopConfig: () => void;
     isFollowing: boolean;
     onRecenter: () => void;
     mapHeading?: number;
     useMiles?: boolean;
-    onRecalculate: () => void;
+    onRecalculate: () => Promise<void>;
 }
 
 export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowing, onRecenter, mapHeading = 0, useMiles = true, onRecalculate }: ActiveNavigationProps) {
@@ -51,8 +52,8 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
 
 
     // -- ANIMATED SHEET --
-    const PEEK_HEIGHT = 100;
-    const EXPANDED_HEIGHT = 180;
+    const PEEK_HEIGHT = 100 + insets.bottom;
+    const EXPANDED_HEIGHT = 180 + insets.bottom;
     const sheetHeight = useSharedValue(PEEK_HEIGHT);
     const context = useSharedValue({ height: PEEK_HEIGHT });
 
@@ -106,19 +107,23 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     // -- REFS --
     const lastSpokenIndex = React.useRef<number>(-1);
     const lastRecalcTime = React.useRef<number>(0);
-    const routeIdRef = React.useRef<string>('');
+    const routeIdRef = React.useRef<RouteResult | null>(null);
+    const offRouteSince = React.useRef<number | null>(null);
+    const recalculationPending = React.useRef(false);
     const minDistRef = React.useRef<number>(Infinity);
     const lastSpeedFetchTime = React.useRef<number>(0);
     const hasArrivedRef = React.useRef<boolean>(false);
+    const arrivalTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // -- 1. RESET LOGIC --
     React.useEffect(() => {
         if (route) {
-            const newId = route.geometry || Math.random().toString();
+            const newId = route;
             if (newId !== routeIdRef.current) {
                 console.log("[Nav] New Route detected. Resetting state.");
+                if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
                 setStepIndex(0);
-                setIsRecalculating(false);
+                offRouteSince.current = null;
                 lastSpokenIndex.current = -1;
                 routeIdRef.current = newId;
                 minDistRef.current = Infinity;
@@ -135,11 +140,11 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     // Derived State
     const displayIndex = route ? Math.min(stepIndex + 1, route.maneuvers.length - 1) : 0;
     const nextManeuver = route?.maneuvers[displayIndex];
-    if (!route || !userLocation) return null;
+
 
     // -- 2. PHYSICS LOOP --
     React.useEffect(() => {
-        if (isRecalculating || !nextManeuver) return;
+        if (!route || !userLocation || isRecalculating || !nextManeuver) return;
 
         const dist = getDistance(
             userLocation.latitude, userLocation.longitude,
@@ -152,23 +157,32 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
         }
 
         const now = Date.now();
-        const currentSpeedMps = userLocation.speed || 0;
-        const isMoving = currentSpeedMps > 2.2; // ~5mph threshold, only recalculate when actually driving
-
-        if (route.coordinates && route.coordinates.length > 5) {
-            let minDistSq = Infinity;
-            // Sample points to find closest distance to route
-            for (let i = 0; i < route.coordinates.length; i += 2) {
-                const p = route.coordinates[i];
-                const dLat = p.latitude - userLocation.latitude;
-                const dLon = p.longitude - userLocation.longitude;
-                const dSq = dLat * dLat + dLon * dLon;
-                if (dSq < minDistSq) minDistSq = dSq;
+        const accuracy = userLocation.accuracy;
+        const reliableFix = accuracy == null || (accuracy >= 0 && accuracy <= 50);
+        const deviation = distanceToRoute(userLocation, route.coordinates);
+        if (!reliableFix || !Number.isFinite(deviation) || deviation <= 60 || hasArrivedRef.current) {
+            offRouteSince.current = null;
+        } else {
+            offRouteSince.current ??= now;
+            if (now - offRouteSince.current >= 5000 && now - lastRecalcTime.current >= 15000 && !recalculationPending.current) {
+                lastRecalcTime.current = now;
+                offRouteSince.current = null;
+                recalculationPending.current = true;
+                setIsRecalculating(true);
+                void (async () => {
+                    try {
+                        await onRecalculate();
+                    } catch (error) {
+                        console.warn('[Nav] Recalculation failed', error);
+                    } finally {
+                        recalculationPending.current = false;
+                        setIsRecalculating(false);
+                    }
+                })();
+                return;
             }
-            const devMeters = Math.sqrt(minDistSq) * 111320;
-
-            // Removed auto-recalculation because point-to-node distance is inaccurate for sparse polylines
-            // and causes endless "Recalculating..." loops.
+            // Do not advance old instructions while confirming a deviation.
+            return;
         }
 
         if (nextManeuver.maneuver.type === 'arrive') {
@@ -181,19 +195,16 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                     
                     // Give the user 5 seconds to hear the message and realize they've arrived 
                     // before abruptly returning to the default map.
-                    setTimeout(() => {
+                    arrivalTimeout.current = setTimeout(() => {
                         onStopConfig();
                     }, 5000);
                 }
             }
         } else {
-            // Advance maneuver if we get close and then distance increases, OR if we are closer to the NEXT turn
-            const nextNextManeuver = route.maneuvers[Math.min(displayIndex + 1, route.maneuvers.length - 1)];
-            const distToNextNext = nextNextManeuver ? getDistance(userLocation.latitude, userLocation.longitude, nextNextManeuver.maneuver.location[1], nextNextManeuver.maneuver.location[0]) : Infinity;
+            // Advance only after approaching and passing this maneuver.
 
             if (
-                (minDistRef.current < 150 && dist > minDistRef.current + 30) || 
-                (distToNextNext < dist && dist < 1000)
+                (minDistRef.current < 50 && dist > minDistRef.current + 30)
             ) {
                 if (stepIndex < route.maneuvers.length - 1) {
                     setStepIndex(prev => prev + 1);
@@ -205,7 +216,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
             userLocation.latitude, userLocation.longitude,
             nextManeuver.maneuver.location[1], nextManeuver.maneuver.location[0]
         );
-        const heading = userLocation.heading || mapHeading || 0;
+        const heading = userLocation.heading != null && userLocation.heading >= 0 ? userLocation.heading : mapHeading;
         setArrowRotation(bearing - heading);
 
     }, [userLocation, route, stepIndex, nextManeuver, isRecalculating]);
@@ -216,7 +227,8 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
 
     React.useEffect(() => {
         spokenTriggersRef.current.clear();
-    }, [stepIndex]);
+        lastSpokenManeuverRef.current = null;
+    }, [stepIndex, route]);
 
     // Handle recalculation alert
     const wasRecalculatingRef = React.useRef(isRecalculating);
@@ -296,7 +308,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
 
     // -- 3.5 SPEED LIMIT LOOP --
     React.useEffect(() => {
-        if (!userLocation) {
+        if (!userLocation || !route) {
             // console.log('Waiting for user location for speed limit...');
             return;
         }
@@ -326,6 +338,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     // -- 4. CLEANUP --
     React.useEffect(() => {
         return () => {
+            if (arrivalTimeout.current) clearTimeout(arrivalTimeout.current);
             // Only stop speech if we haven't just arrived. 
             // If we arrived, we want the "You have arrived" message to finish playing.
             if (!hasArrivedRef.current) {
@@ -333,6 +346,8 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
             }
         };
     }, []);
+
+    if (!route || !userLocation) return null;
 
     // -- RENDER HELPERS --
     let distDisplay = '';
@@ -355,7 +370,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
     }
 
     // Speed
-    const currentSpeedMps = userLocation.speed || 0;
+    const currentSpeedMps = Math.max(0, userLocation.speed ?? 0);
     const currentSpeed = useMiles
         ? Math.round(currentSpeedMps * 2.23694) // m/s to mph
         : Math.round(currentSpeedMps * 3.6);    // m/s to km/h
@@ -385,9 +400,9 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                 />
                 <View style={{ flex: 1 }}>
                     <Text style={[styles.maneuverText, { fontFamily: getFont('OpenSans_400Regular') }]} numberOfLines={2}>
-                        {nextManeuver?.name || t('Proceed')}
+                        {isRecalculating ? t('Recalculating route.') : nextManeuver?.name || t('Proceed')}
                     </Text>
-                    <Text style={[styles.maneuverDist, { fontFamily: getFont('OpenSans_700Bold') }]}>{distDisplay}</Text>
+                    <Text style={[styles.maneuverDist, { fontFamily: getFont('OpenSans_700Bold') }]}>{isRecalculating ? '—' : distDisplay}</Text>
                 </View>
             </View>
 
@@ -399,10 +414,11 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                 ]}>
                     <TouchableOpacity
                         onPress={onRecenter}
+                        accessibilityLabel={t('Recenter map')}
                         activeOpacity={0.8}
                         style={[styles.fabButton, { width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2, backgroundColor: 'rgba(30, 30, 30, 0.85)', borderColor: '#555' }]}
                     >
-                        <MaterialCommunityIcons name="crosshairs-gps" size={normalizeFont(28)} color={colors.text} />
+                        <MaterialCommunityIcons name="crosshairs-gps" size={normalizeFont(28)} color="#ffffff" />
                     </TouchableOpacity>
                 </Animated.View>
             )}
@@ -416,7 +432,7 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                         {/* Speed + Speed Limit */}
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                             <View style={{ alignItems: 'flex-start' }}>
-                                <Text style={[styles.dashValueLarge, { color: isOverLimit ? '#d55' : colors.text, fontFamily: getFont('OpenSans_300Light') }]}>{currentSpeed}</Text>
+                                <Text style={[styles.dashValueLarge, { color: isOverLimit ? '#d55' : '#ffffff', fontFamily: getFont('OpenSans_300Light') }]}>{currentSpeed}</Text>
                                 <Text style={[styles.dashLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>{useMiles ? t('mph') : t('km/h')}</Text>
                             </View>
                             <View style={styles.speedLimitBox}>
@@ -426,14 +442,14 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
 
                         {/* Distance */}
                         <View style={{ alignItems: 'flex-start' }}>
-                            <Text style={[styles.dashValue, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{(route.distance / (useMiles ? 1609.34 : 1000)).toFixed(1)}</Text>
-                            <Text style={[styles.dashLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>{useMiles ? t('mi') : t('km')}</Text>
+                            <Text style={[styles.dashValue, { color: '#ffffff', fontFamily: getFont('OpenSans_400Regular') }]}>{(route.distance / (useMiles ? 1609.34 : 1000)).toFixed(1)}</Text>
+                            <Text style={[styles.dashLabel, { color: '#b9c1c8', fontFamily: getFont('OpenSans_300Light') }]}>{useMiles ? t('mi') : t('km')}</Text>
                         </View>
 
                         {/* Time Remaining */}
                         <View style={{ alignItems: 'flex-start' }}>
-                            <Text style={[styles.dashValue, { color: colors.text, fontFamily: getFont('OpenSans_400Regular') }]}>{timeDisplay}</Text>
-                            <Text style={[styles.dashLabel, { color: colors.textDim, fontFamily: getFont('OpenSans_300Light') }]}>{t('min')}</Text>
+                            <Text style={[styles.dashValue, { color: '#ffffff', fontFamily: getFont('OpenSans_400Regular') }]}>{timeDisplay}</Text>
+                            <Text style={[styles.dashLabel, { color: '#b9c1c8', fontFamily: getFont('OpenSans_300Light') }]}>{t('min')}</Text>
                         </View>
 
                     </View>
@@ -441,7 +457,8 @@ export function ActiveNavigation({ route, userLocation, onStopConfig, isFollowin
                     {/* End Navigation Button - Hidden when shrunk, shows instantly on expansion */}
                     {dashboardExpanded && (
                         <View style={{ width: '100%', marginTop: 15 }}>
-                            <MetroButton title={t("end navigation")} variant="outlined" onPress={onStopConfig} />
+                            <MetroButton title={t("end navigation")} variant="outlined" onPress={onStopConfig}
+                                style={{ borderColor: '#ffffff' }} textStyle={{ color: '#ffffff' }} />
                         </View>
                     )}
 

@@ -26,7 +26,7 @@ import { useTheme } from '../contexts/ThemeContext';
 export default function HomeScreen() {
     const { colors } = useTheme();
     // State
-    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number, heading?: number | null, speed?: number | null } | null>(null);
+    const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number, heading?: number | null, speed?: number | null, accuracy?: number | null } | null>(null);
 
     // UI Modes
     const [searchActive, setSearchActive] = useState(false);
@@ -126,6 +126,8 @@ export default function HomeScreen() {
 
     // Locations
     useEffect(() => {
+        let disposed = false;
+        let subscription: Location.LocationSubscription | undefined;
         (async () => {
             // Check if Location Services are enabled at system level
             const servicesEnabled = await Location.hasServicesEnabledAsync();
@@ -150,19 +152,23 @@ export default function HomeScreen() {
             }
 
             // Use watchPositionAsync for better accuracy and efficiency
-            const subscription = await Location.watchPositionAsync(
+            subscription = await Location.watchPositionAsync(
                 {
                     accuracy: Location.Accuracy.BestForNavigation,
-                    timeInterval: 33,       // Update every ~33ms (2 frames at 60fps)
-                    distanceInterval: 0,    // Update regardless of distance
+                    timeInterval: 1000,     // Avoid overlapping camera animations and excessive renders
+                    distanceInterval: 1,
                 },
                 (location) => {
-                    setUserLocation(location.coords);
+                    if (!disposed) setUserLocation(location.coords);
                 }
             );
 
-            return () => subscription.remove();
-        })();
+            if (disposed) subscription.remove();
+        })().catch(error => console.warn('Location updates unavailable', error));
+        return () => {
+            disposed = true;
+            subscription?.remove();
+        };
     }, []);
 
     // Back Button Handling
@@ -172,12 +178,9 @@ export default function HomeScreen() {
                 // Prevent accidental exit. User must press 'END' button.
                 return true;
             }
-            if (activeNavigation) {
-                // Prevent accidental exit. User must press 'END' button.
-                return true;
-            }
             if (appMenuVisible) { setAppMenuVisible(false); return true; }
             if (settingsVisible) { setSettingsVisible(false); return true; }
+            if (aboutVisible) { setAboutVisible(false); return true; }
             if (optionsActive) { setOptionsActive(false); return true; }
             if (favoritesState !== 'hidden') { setFavoritesState('hidden'); return true; }
             if (pivotActive) {
@@ -208,7 +211,7 @@ export default function HomeScreen() {
         };
         const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
         return () => backHandler.remove();
-    }, [pivotActive, searchActive, navState, resultsState, optionsActive, activeNavigation, favoritesState, appMenuVisible, settingsVisible]);
+    }, [pivotActive, searchActive, navState, resultsState, optionsActive, activeNavigation, favoritesState, appMenuVisible, settingsVisible, aboutVisible]);
 
 
     const [startPlace, setStartPlace] = useState<SearchResult | null>(null);
@@ -217,6 +220,11 @@ export default function HomeScreen() {
     const [searchMode, setSearchMode] = useState<'explore' | 'directions'>('explore');
 
     // ...
+
+    const routeRequestId = React.useRef(0);
+    useEffect(() => {
+        routeRequestId.current += 1;
+    }, [selectedPlace, startPlace]);
 
     // Actions
     const handleSearchSelect = (result: SearchResult) => {
@@ -253,6 +261,7 @@ export default function HomeScreen() {
     };
 
     const handleGetDirections = async () => {
+        const requestId = ++routeRequestId.current;
         setPivotActive(false); // Close Pivot Screen
         setResultsState('hidden');
         setRouteError(null);
@@ -268,6 +277,7 @@ export default function HomeScreen() {
                 'driving'
             );
 
+            if (requestId !== routeRequestId.current) return;
             if (fetchedRoutes && fetchedRoutes.length > 0) {
                 // Success: Show Route immediately (Old Behavior)
                 setRoutes(fetchedRoutes);
@@ -293,7 +303,9 @@ export default function HomeScreen() {
     };
 
     const handleCalculateRoute = async () => {
-        // Perform the actual route fetch
+        const requestId = ++routeRequestId.current;
+        // Clear previous directions while the new route is calculated.
+        setRoutes([]);
         setRouteError(null);
         setNavStep('routing'); // Switch view immediately (loading state?) - technically we should wait, but for now...
 
@@ -311,6 +323,7 @@ export default function HomeScreen() {
                 endCoords,
                 transportMode
             );
+            if (requestId !== routeRequestId.current) return;
             if (fetchedRoutes && fetchedRoutes.length > 0) {
                 setRoutes(fetchedRoutes);
                 setSelectedRouteIndex(0);
@@ -325,6 +338,7 @@ export default function HomeScreen() {
 
     // Hijack handleTransportModeChange to just update state if in setup mode, or fetch if in routing
     const handleTransportModeChange = async (mode: 'driving' | 'walking' | 'transit') => {
+        const requestId = ++routeRequestId.current;
         setTransportMode(mode);
         if (navStep === 'setup') return; // Just update state
 
@@ -342,6 +356,7 @@ export default function HomeScreen() {
 
         if (startCoords && endCoords) {
             const fetchedRoutes = await api.getRoutes(startCoords, endCoords, mode);
+            if (requestId !== routeRequestId.current) return;
             if (fetchedRoutes && fetchedRoutes.length > 0) {
                 setRoutes(fetchedRoutes);
                 setSelectedRouteIndex(0);
@@ -353,6 +368,7 @@ export default function HomeScreen() {
     };
 
     const handleStartNavigation = () => {
+        if (!route || !userLocation) return;
         setNavState('hidden');
         setActiveNavigation(true);
         setIsFollowing(true);
@@ -360,18 +376,29 @@ export default function HomeScreen() {
         Speech.speak("Driving mode started.");
     };
 
+    const navigationSession = React.useRef(0);
+    useEffect(() => {
+        return () => { navigationSession.current += 1; };
+    }, [activeNavigation]);
+
     const handleRecalculate = async () => {
-        if (userLocation && selectedPlace) {
+        const session = navigationSession.current;
+        if (!userLocation || !selectedPlace) return;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try {
             const fetchedRoutes = await api.getRoutes(
                 { lat: userLocation.latitude, lon: userLocation.longitude },
                 { lat: parseFloat(selectedPlace.lat), lon: parseFloat(selectedPlace.lon) },
-                transportMode
+                transportMode,
+                controller.signal
             );
-            if (fetchedRoutes && fetchedRoutes.length > 0) {
+            if (session === navigationSession.current && fetchedRoutes && fetchedRoutes.length > 0) {
                 setRoutes(fetchedRoutes);
                 setSelectedRouteIndex(0);
-                // ActiveNavigation will detect route change and reset stepIndex automatically
             }
+        } finally {
+            clearTimeout(timeout);
         }
     };
 
@@ -407,7 +434,7 @@ export default function HomeScreen() {
 
 
 
-    const appBarHidden = searchActive || resultsState !== 'hidden' || navState !== 'hidden' || pivotActive || optionsActive || favoritesState !== 'hidden' || activeNavigation || appMenuVisible || settingsVisible;
+    const appBarHidden = searchActive || resultsState !== 'hidden' || navState !== 'hidden' || pivotActive || optionsActive || favoritesState !== 'hidden' || activeNavigation || appMenuVisible || settingsVisible || aboutVisible;
 
     if (!hasLoadedRegion) {
         return <View style={{ flex: 1, backgroundColor: colors.background }} />;
@@ -419,6 +446,7 @@ export default function HomeScreen() {
                 userLocation={userLocation}
                 destination={selectedPlace}
                 results={searchResults}
+                favorites={favorites}
                 routes={routes}
                 selectedRouteIndex={selectedRouteIndex}
                 onSelectRoute={setSelectedRouteIndex}
@@ -428,6 +456,7 @@ export default function HomeScreen() {
                 showsBuildings={showsBuildings}
                 showZoomControls={showZoomControls}
                 showUserLocation={showUserLocation}
+                useMiles={units !== 'metric'}
                 onMapPress={handleMapPress}
                 onPinPress={(item) => {
                     if (item) {

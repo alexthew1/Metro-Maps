@@ -1,0 +1,36 @@
+Metro Maps cloud-style conversion
+
+Source: constants/MapStyles.ts (35 light rules and 34 dark rules).
+Output: 24 modern cloud-style rules per theme, with inheritance covering the shared styles.
+Both files were validated against Google's downloadable cloud style JSON schema.
+
+Preserved where supported:
+- Warm light land, near-black dark land, and the original water colors.
+- Purple light highways, cream arterial roads, white local roads; the original dark road fills and outlines.
+- Building fills and outlines, commercial footprints, hospital areas and green parks.
+- Rail-line colors, blue transit icons, boundary/parcel colors and label palettes.
+- Blue POI pins with the requested white outlines and white glyphs.
+
+Conversion differences:
+- Controlled-access highways have no separate cloud feature ID. They use the general highway style instead of the separate light-mode subtype override.
+- Some legacy POI polygon rules have no cloud geometry properties. Their shared color is retained through the POI/building parent styles. Hospital polygon styling is available; pharmacy-specific polygons are not exposed separately.
+- Transit-station polygon fills are not exposed in the cloud schema. Station icons are styled; station footprints use the building palette.
+- The available transit-line geometry maps to railway tracks; other transit-line categories are not separately exposed.
+- Some political boundary widths and POI polygon strokes are not available. Border color, parcel outlines and building outlines are retained where supported.
+- The downloaded schema does not expose text-outline width. The original label text and outline colors are preserved.
+- Cloud label visibility applies to both pin and text, whereas the source could switch icons alone. The source uses visible icons throughout.
+
+Editor settings that JSON cannot encode:
+- Select building footprints if you want the 2D building outline colors to be visible.
+- Select standard landmark icons to use ordinary POI pins instead of illustrated landmarks.
+- POI density remains a separate editor setting; this conversion does not change it.
+
+Import the light and dark files as separate styles. Review the map preview, save/publish each style, and associate each with an Android map ID.
+
+Full per-rule mapping: conversion-report.json
+Schema: https://developers.google.com/static/maps/cbms-json-schema.json
+Reference: https://developers.google.com/maps/documentation/android-sdk/cloud-customization/json-reference
+Import instructions: https://developers.google.com/maps/documentation/android-sdk/cloud-customization/json
+
+Regenerate from the local styles:
+node scripts/convert-cloud-styles.cjs --schema PATH_TO_DOWNLOADED_GOOGLE_SCHEMA

@@ -1,0 +1,959 @@
+{
+  "light": {
+    "legacyRules": 35,
+    "cloudRules": 24,
+    "coverage": [
+      {
+        "sourceRule": 1,
+        "feature": "all",
+        "element": "geometry",
+        "values": {
+          "color": "#f2efe9"
+        },
+        "cloudFeatures": [
+          "natural",
+          "infrastructure",
+          "pointOfInterest",
+          "political"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 2,
+        "feature": "all",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#333333"
+        },
+        "cloudFeatures": [
+          "natural",
+          "infrastructure",
+          "pointOfInterest",
+          "political"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 3,
+        "feature": "all",
+        "element": "labels.text.stroke",
+        "values": {
+          "color": "#ffffff",
+          "weight": 3
+        },
+        "cloudFeatures": [
+          "natural",
+          "infrastructure",
+          "pointOfInterest",
+          "political"
+        ],
+        "notes": [
+          "The downloadable cloud schema does not expose text stroke width; text stroke color is preserved."
+        ]
+      },
+      {
+        "sourceRule": 4,
+        "feature": "administrative",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#c9c4b8",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "political.border",
+          "political.landParcel"
+        ],
+        "notes": [
+          "Boundary color maps to political.border; land-parcel color and width are retained. Country/state boundary widths are not exposed."
+        ]
+      },
+      {
+        "sourceRule": 5,
+        "feature": "administrative.land_parcel",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#e0ded7"
+        },
+        "cloudFeatures": [
+          "political.landParcel"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 6,
+        "feature": "administrative.neighborhood",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#666666"
+        },
+        "cloudFeatures": [
+          "political.neighborhood"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 7,
+        "feature": "landscape",
+        "element": "geometry",
+        "values": {
+          "color": "#f2efe9"
+        },
+        "cloudFeatures": [
+          "natural.land",
+          "infrastructure.urbanArea"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 8,
+        "feature": "landscape.man_made",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#f2efe9"
+        },
+        "cloudFeatures": [
+          "infrastructure.urbanArea"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 9,
+        "feature": "landscape.natural",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#f2efe9"
+        },
+        "cloudFeatures": [
+          "natural.land"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 10,
+        "feature": "landscape.man_made.building",
+        "element": "geometry.fill",
+        "values": {
+          "visibility": "on",
+          "color": "#cfc9bd"
+        },
+        "cloudFeatures": [
+          "infrastructure.building"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 11,
+        "feature": "landscape.man_made.building",
+        "element": "geometry.stroke",
+        "values": {
+          "visibility": "on",
+          "color": "#b3aca0",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.building"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 12,
+        "feature": "poi",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#cfc9bd"
+        },
+        "cloudFeatures": [
+          "pointOfInterest"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 13,
+        "feature": "poi",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#b3aca0",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "pointOfInterest"
+        ],
+        "notes": [
+          "No polygon stroke control for pointOfInterest; related building outlines are retained in infrastructure.building."
+        ]
+      },
+      {
+        "sourceRule": 14,
+        "feature": "poi.business",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#cfc9bd"
+        },
+        "cloudFeatures": [
+          "infrastructure.building.commercial",
+          "pointOfInterest.foodAndDrink",
+          "pointOfInterest.retail",
+          "pointOfInterest.service",
+          "pointOfInterest.lodging"
+        ],
+        "notes": [
+          "Business category expands to commercial buildings, food/drink, retail, services and lodging.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.foodAndDrink; related footprints retain the general building/POI palette.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.retail; related footprints retain the general building/POI palette.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.lodging; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 15,
+        "feature": "poi.government",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#cfc9bd"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.other.government"
+        ],
+        "notes": [
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.other.government; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 16,
+        "feature": "poi.attraction",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#cfc9bd"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.entertainment.touristAttraction",
+          "pointOfInterest.landmark"
+        ],
+        "notes": [
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.entertainment.touristAttraction; related footprints retain the general building/POI palette.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.landmark; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 17,
+        "feature": "poi.school",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#cfc9bd"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.other.school"
+        ],
+        "notes": [
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.other.school; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 18,
+        "feature": "poi.medical",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#ecd8db"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.emergency.hospital",
+          "pointOfInterest.emergency.pharmacy"
+        ],
+        "notes": [
+          "Medical maps to the available hospital and pharmacy categories.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.emergency.pharmacy; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 19,
+        "feature": "poi",
+        "element": "labels.icon",
+        "values": {
+          "visibility": "on",
+          "color": "#0085d0"
+        },
+        "cloudFeatures": [
+          "pointOfInterest"
+        ],
+        "notes": [
+          "Cloud label visibility controls the icon and text together."
+        ]
+      },
+      {
+        "sourceRule": 20,
+        "feature": "poi.park",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#dbeed4"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.recreation.park"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 21,
+        "feature": "poi.park",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#5b7c52"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.recreation.park"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 22,
+        "feature": "transit",
+        "element": "labels.icon",
+        "values": {
+          "visibility": "on",
+          "color": "#0085d0"
+        },
+        "cloudFeatures": [
+          "infrastructure.transitStation",
+          "pointOfInterest.transit"
+        ],
+        "notes": [
+          "Cloud label visibility controls the icon and text together."
+        ]
+      },
+      {
+        "sourceRule": 23,
+        "feature": "road",
+        "element": "geometry",
+        "values": {
+          "visibility": "on"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 24,
+        "feature": "road.highway",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#cfb2dd"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.highway"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 25,
+        "feature": "road.highway",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#b894cc",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.highway"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 26,
+        "feature": "road.highway.controlled_access",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#c4a3d4"
+        },
+        "cloudFeatures": [],
+        "notes": [
+          "No controlled-access highway subtype in the cloud schema. The parent highway palette is retained; the separate subtype override cannot be expressed."
+        ]
+      },
+      {
+        "sourceRule": 27,
+        "feature": "road.highway.controlled_access",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#aa82bd"
+        },
+        "cloudFeatures": [],
+        "notes": [
+          "No controlled-access highway subtype in the cloud schema. The parent highway palette is retained; the separate subtype override cannot be expressed."
+        ]
+      },
+      {
+        "sourceRule": 28,
+        "feature": "road.arterial",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#fef5d6"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.arterial"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 29,
+        "feature": "road.arterial",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#ded8c8",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.arterial"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 30,
+        "feature": "road.local",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#ffffff"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.local",
+          "infrastructure.roadNetwork.road.noOutlet"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 31,
+        "feature": "road.local",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#e0ddd5",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.local",
+          "infrastructure.roadNetwork.road.noOutlet"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 32,
+        "feature": "transit.line",
+        "element": "geometry",
+        "values": {
+          "color": "#c8c4bc"
+        },
+        "cloudFeatures": [
+          "infrastructure.railwayTrack"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 33,
+        "feature": "transit.station",
+        "element": "geometry",
+        "values": {
+          "color": "#dedad2"
+        },
+        "cloudFeatures": [
+          "infrastructure.transitStation"
+        ],
+        "notes": [
+          "Cloud transit-station features expose labels, not separately styleable station geometry. Building footprints inherit the building palette."
+        ]
+      },
+      {
+        "sourceRule": 34,
+        "feature": "water",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#b8dcf2"
+        },
+        "cloudFeatures": [
+          "natural.water"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 35,
+        "feature": "water",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#4a7a9c"
+        },
+        "cloudFeatures": [
+          "natural.water"
+        ],
+        "notes": []
+      }
+    ]
+  },
+  "dark": {
+    "legacyRules": 34,
+    "cloudRules": 24,
+    "coverage": [
+      {
+        "sourceRule": 1,
+        "feature": "all",
+        "element": "geometry",
+        "values": {
+          "color": "#0f0f0f"
+        },
+        "cloudFeatures": [
+          "natural",
+          "infrastructure",
+          "pointOfInterest",
+          "political"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 2,
+        "feature": "all",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#cccccc"
+        },
+        "cloudFeatures": [
+          "natural",
+          "infrastructure",
+          "pointOfInterest",
+          "political"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 3,
+        "feature": "all",
+        "element": "labels.text.stroke",
+        "values": {
+          "color": "#0f0f0f",
+          "weight": 3
+        },
+        "cloudFeatures": [
+          "natural",
+          "infrastructure",
+          "pointOfInterest",
+          "political"
+        ],
+        "notes": [
+          "The downloadable cloud schema does not expose text stroke width; text stroke color is preserved."
+        ]
+      },
+      {
+        "sourceRule": 4,
+        "feature": "administrative",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#333333",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "political.border",
+          "political.landParcel"
+        ],
+        "notes": [
+          "Boundary color maps to political.border; land-parcel color and width are retained. Country/state boundary widths are not exposed."
+        ]
+      },
+      {
+        "sourceRule": 5,
+        "feature": "administrative.locality",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#e0e0e0"
+        },
+        "cloudFeatures": [
+          "political.city"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 6,
+        "feature": "landscape",
+        "element": "geometry",
+        "values": {
+          "color": "#0f0f0f"
+        },
+        "cloudFeatures": [
+          "natural.land",
+          "infrastructure.urbanArea"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 7,
+        "feature": "landscape.man_made",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#0f0f0f"
+        },
+        "cloudFeatures": [
+          "infrastructure.urbanArea"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 8,
+        "feature": "landscape.natural",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#0f0f0f"
+        },
+        "cloudFeatures": [
+          "natural.land"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 9,
+        "feature": "landscape.man_made.building",
+        "element": "geometry.fill",
+        "values": {
+          "visibility": "on",
+          "color": "#272727"
+        },
+        "cloudFeatures": [
+          "infrastructure.building"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 10,
+        "feature": "landscape.man_made.building",
+        "element": "geometry.stroke",
+        "values": {
+          "visibility": "on",
+          "color": "#3d3d3d",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.building"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 11,
+        "feature": "poi",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#272727"
+        },
+        "cloudFeatures": [
+          "pointOfInterest"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 12,
+        "feature": "poi",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#3d3d3d",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "pointOfInterest"
+        ],
+        "notes": [
+          "No polygon stroke control for pointOfInterest; related building outlines are retained in infrastructure.building."
+        ]
+      },
+      {
+        "sourceRule": 13,
+        "feature": "poi",
+        "element": "labels.icon",
+        "values": {
+          "visibility": "on",
+          "color": "#0085d0"
+        },
+        "cloudFeatures": [
+          "pointOfInterest"
+        ],
+        "notes": [
+          "Cloud label visibility controls the icon and text together."
+        ]
+      },
+      {
+        "sourceRule": 14,
+        "feature": "poi.business",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#272727"
+        },
+        "cloudFeatures": [
+          "infrastructure.building.commercial",
+          "pointOfInterest.foodAndDrink",
+          "pointOfInterest.retail",
+          "pointOfInterest.service",
+          "pointOfInterest.lodging"
+        ],
+        "notes": [
+          "Business category expands to commercial buildings, food/drink, retail, services and lodging.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.foodAndDrink; related footprints retain the general building/POI palette.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.retail; related footprints retain the general building/POI palette.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.lodging; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 15,
+        "feature": "poi.government",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#272727"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.other.government"
+        ],
+        "notes": [
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.other.government; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 16,
+        "feature": "poi.attraction",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#272727"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.entertainment.touristAttraction",
+          "pointOfInterest.landmark"
+        ],
+        "notes": [
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.entertainment.touristAttraction; related footprints retain the general building/POI palette.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.landmark; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 17,
+        "feature": "poi.school",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#272727"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.other.school"
+        ],
+        "notes": [
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.other.school; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 18,
+        "feature": "poi.medical",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#2d2325"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.emergency.hospital",
+          "pointOfInterest.emergency.pharmacy"
+        ],
+        "notes": [
+          "Medical maps to the available hospital and pharmacy categories.",
+          "Cloud schema does not expose geometry.fillColor for pointOfInterest.emergency.pharmacy; related footprints retain the general building/POI palette."
+        ]
+      },
+      {
+        "sourceRule": 19,
+        "feature": "poi.park",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#151c15"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.recreation.park"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 20,
+        "feature": "poi.park",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#7da67d"
+        },
+        "cloudFeatures": [
+          "pointOfInterest.recreation.park"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 21,
+        "feature": "road",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#1e1e1e"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 22,
+        "feature": "road",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#383838",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 23,
+        "feature": "road",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#cccccc"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 24,
+        "feature": "road.highway",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#262626"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.highway"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 25,
+        "feature": "road.highway",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#454545",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.highway"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 26,
+        "feature": "road.arterial",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#222222"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.arterial"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 27,
+        "feature": "road.arterial",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#3d3d3d",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.arterial"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 28,
+        "feature": "road.local",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#1a1a1a"
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.local",
+          "infrastructure.roadNetwork.road.noOutlet"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 29,
+        "feature": "road.local",
+        "element": "geometry.stroke",
+        "values": {
+          "color": "#333333",
+          "weight": 1
+        },
+        "cloudFeatures": [
+          "infrastructure.roadNetwork.road.local",
+          "infrastructure.roadNetwork.road.noOutlet"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 30,
+        "feature": "transit",
+        "element": "labels.icon",
+        "values": {
+          "visibility": "on",
+          "color": "#0085d0"
+        },
+        "cloudFeatures": [
+          "infrastructure.transitStation",
+          "pointOfInterest.transit"
+        ],
+        "notes": [
+          "Cloud label visibility controls the icon and text together."
+        ]
+      },
+      {
+        "sourceRule": 31,
+        "feature": "transit.line",
+        "element": "geometry",
+        "values": {
+          "color": "#2a2a2a"
+        },
+        "cloudFeatures": [
+          "infrastructure.railwayTrack"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 32,
+        "feature": "transit.station",
+        "element": "geometry",
+        "values": {
+          "color": "#222222"
+        },
+        "cloudFeatures": [
+          "infrastructure.transitStation"
+        ],
+        "notes": [
+          "Cloud transit-station features expose labels, not separately styleable station geometry. Building footprints inherit the building palette."
+        ]
+      },
+      {
+        "sourceRule": 33,
+        "feature": "water",
+        "element": "geometry.fill",
+        "values": {
+          "color": "#080808"
+        },
+        "cloudFeatures": [
+          "natural.water"
+        ],
+        "notes": []
+      },
+      {
+        "sourceRule": 34,
+        "feature": "water",
+        "element": "labels.text.fill",
+        "values": {
+          "color": "#4f6a7d"
+        },
+        "cloudFeatures": [
+          "natural.water"
+        ],
+        "notes": []
+      }
+    ]
+  }
+}

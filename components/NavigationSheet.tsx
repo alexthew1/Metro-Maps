@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { BottomSheet } from './BottomSheet';
 import { horizontalScale, verticalScale, normalizeFont } from '../utils/responsive';
 import { MetroButton } from './MetroButton';
@@ -52,7 +52,17 @@ export function NavigationSheet({ routes = [], selectedRouteIndex = 0, onSelectR
     if (state === 'hidden') return null;
 
     // In routing mode, we need route or error. In setup mode, we just need visibility.
-    if (step === 'routing' && !route && !error) return null;
+    if (step === 'routing' && !route && !error) {
+        return (
+            <BottomSheet visible state={state} onStateChange={onStateChange} peekHeight={verticalScale(240)}
+                header={<View style={{ padding: 24, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    <ActivityIndicator color={colors.accent} size="large" />
+                    <Text style={{ color: colors.text, fontSize: normalizeFont(22), fontFamily: getFont('OpenSans_300Light') }}>{t('Calculating route…')}</Text>
+                </View>}>
+                <View />
+            </BottomSheet>
+        );
+    }
 
     const durationMin = route ? Math.round(route.duration / 60) : 0;
     let timeDisplay = `${durationMin}  ${t('MIN')}`;

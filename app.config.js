@@ -29,7 +29,8 @@ export default {
                     "imageWidth": 1
                 }
             ],
-            "expo-build-properties"
+            "expo-build-properties",
+            "./plugins/with-native-map-markers"
         ],
         scheme: "metromap",
         ios: {

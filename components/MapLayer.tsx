@@ -12,10 +12,11 @@ import { useCustomFont } from '../contexts/FontContext';
 
 import { LIGHT_MAP_STYLE, DARK_MAP_STYLE } from '../constants/MapStyles';
 
-interface MapLayerProps {
+export interface MapLayerProps {
     userLocation: { latitude: number; longitude: number; heading?: number | null } | null;
     destination: SearchResult | null;
     results?: SearchResult[];
+    favorites?: SearchResult[];
     routes?: RouteResult[];
     selectedRouteIndex?: number;
     onSelectRoute?: (index: number) => void;

@@ -1,3 +1,4 @@
+import { isMapRegion } from '../utils/storedData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
 
@@ -91,7 +92,8 @@ export const SettingsService = {
     async getLastRegion(): Promise<any | null> {
         try {
             const jsonValue = await AsyncStorage.getItem(LAST_REGION_KEY);
-            return jsonValue != null ? JSON.parse(jsonValue) : null;
+            const parsed: unknown = jsonValue != null ? JSON.parse(jsonValue) : null;
+            return isMapRegion(parsed) ? parsed : null;
         } catch (e) {
             console.error('Failed to load last region', e);
             return null;

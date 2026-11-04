@@ -130,7 +130,10 @@ export function PivotScreen({ item, onClose, onGetDirections, isFavorite, onTogg
                 }
             });
         }
-        return () => { isMounted = false; };
+        return () => {
+            isMounted = false;
+            if (addPhotoTimeoutRef.current) clearTimeout(addPhotoTimeoutRef.current);
+        };
     }, [item?.place_id]);
 
     const handlePageSelection = (e: any) => {
